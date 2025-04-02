@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInWithEmail, signInWithPhone, error } = useAuth();
+  const { signInWithEmail, signInWithPhone } = useAuth();
   const [isPhoneLogin, setIsPhoneLogin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +42,6 @@ export default function LoginPage() {
     
     try {
       await signInWithPhone(phoneNumber);
-      // Note: In a real app, you'd need to handle the verification code step here
       toast.success('Verification code sent!');
     } catch (err) {
       toast.error('Failed to send verification code.');
@@ -69,7 +68,7 @@ export default function LoginPage() {
               onClick={() => setIsPhoneLogin(!isPhoneLogin)}
               className="text-sm font-medium text-blue-600 hover:text-blue-500"
             >
-              {isPhoneLogin ? 'Use email instead' : 'Use phone number instead'}
+              {isPhoneLogin ? "Use email instead" : "Use phone number instead"}
             </button>
           </div>
         </div>
@@ -100,7 +99,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {loading ? 'Sending code...' : 'Send verification code'}
+                {loading ? "Sending code..." : "Send verification code"}
               </button>
             </div>
           </form>
@@ -147,7 +146,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading ? "Signing in..." : "Sign in"}
               </button>
             </div>
           </form>
