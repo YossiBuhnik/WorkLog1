@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase/firebase';
 import { Request, User } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Download } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface EmployeeStats {
   name: string;
@@ -48,40 +49,26 @@ export default function Reports() {
   const [selectedView, setSelectedView] = useState<'month' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'trends' | 'employees'>('employees');
 
-  useEffect(() => {
-    fetchStats();
-  }, [selectedMonth, selectedView]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
     try {
-      setLoadingStats(true);
-      
-      // Get all requests
-      const requestsRef = collection(db, 'requests');
-      const requestsSnapshot = await getDocs(requestsRef);
-      const requests = requestsSnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-      })) as Request[];
-
-      // Get all users
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
-      const users = usersSnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-      })) as User[];
+      const [requests, users] = await Promise.all([
+        getDocs(collection(db, 'requests')),
+        getDocs(collection(db, 'users'))
+      ]);
 
       // Filter requests based on selected month/year
-      const filteredRequests = requests.filter(request => {
-        const requestDate = request.createdAt.toDate();
-        if (selectedView === 'year') {
-          return requestDate.getFullYear() === new Date().getFullYear();
-        } else {
-          return requestDate.getMonth() === selectedMonth && 
-                 requestDate.getFullYear() === new Date().getFullYear();
-        }
-      });
+      const filteredRequests = requests.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as Request[]
+        .filter(request => {
+          const requestDate = new Date(request.createdAt);
+          if (selectedView === 'month') {
+            return requestDate.getMonth() === selectedMonth;
+          }
+          return true; // For yearly view, include all requests
+        });
 
       // Calculate basic stats from filtered requests
       const totalRequests = filteredRequests.filter(r => r.status !== 'cancelled').length;
@@ -116,7 +103,10 @@ export default function Reports() {
       }));
 
       // Calculate employee stats
-      const employeeStats = users
+      const employeeStats = users.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as User[]
         .filter(u => u.roles.includes('employee'))
         .map(employee => {
           const employeeRequests = filteredRequests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
@@ -185,10 +175,15 @@ export default function Reports() {
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
+      toast.error(t('errors.fetchStats'));
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [selectedMonth, selectedView, t]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const handleExportCSV = () => {
     if (!stats) return;

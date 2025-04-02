@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import { getDocuments } from '@/lib/firebase/firebaseUtils';
 import { User } from '@/lib/types';
 import { toast } from 'react-hot-toast';
 
@@ -14,26 +15,22 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
-      const employeesList = usersSnapshot.docs
-        .map(doc => ({ ...doc.data(), id: doc.id } as User))
-        .filter(user => user.roles.includes('employee'));
-      setEmployees(employeesList);
+      const employeesData = await getDocuments('employees');
+      setEmployees(employeesData);
     } catch (error) {
       console.error('Error fetching employees:', error);
-      toast.error(t('error.loading.employees'));
+      toast.error(t('errors.fetchEmployees'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   if (loading) {
     return (
