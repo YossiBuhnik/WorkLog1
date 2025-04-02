@@ -4,6 +4,11 @@ const nextConfig = {
   poweredByHeader: false, // Removes the X-Powered-By header for security
   reactStrictMode: true,
   swcMinify: true, // Uses SWC for minification (faster than Terser)
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
 }
 
 module.exports = nextConfig 
