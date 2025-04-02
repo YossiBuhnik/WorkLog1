@@ -3,9 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --primary: #1E3B8A;
+  --primary-light: #2B4BA8;
+  --accent: #4B9BFF;
+  --accent-light: #7AB5FF;
+  --background: #F8FAFC;
+  --text: #1F2937;
+  --text-light: #6B7280;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50;
+    color: var(--text);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-[var(--primary)] hover:bg-[var(--primary-light)] text-white px-4 py-2 rounded-md transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-[var(--accent)] hover:bg-[var(--accent-light)] text-white px-4 py-2 rounded-md transition-colors;
+  }
+
+  .nav-link {
+    @apply px-3 py-2 rounded-md text-sm font-medium text-white hover:bg-[var(--primary-light)] transition-colors;
+  }
+
+  .nav-link-active {
+    @apply bg-[var(--primary-light)] text-white;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-sm p-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-[var(--primary)];
+  }
+
+  .page-subtitle {
+    @apply text-sm text-[var(--text-light)];
+  }
 }
 
 @media (prefers-color-scheme: dark) {
