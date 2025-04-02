@@ -52,39 +52,46 @@ export default function Reports() {
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const [requests, users] = await Promise.all([
+      const [requestsSnapshot, usersSnapshot] = await Promise.all([
         getDocs(collection(db, 'requests')),
         getDocs(collection(db, 'users'))
       ]);
 
-      // Filter requests based on selected month/year
-      const filteredRequests = requests.docs.map(doc => ({
+      // Convert snapshots to typed arrays
+      const requests = requestsSnapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
-      })) as Request[]
-        .filter(request => {
-          const requestDate = new Date(request.createdAt);
-          if (selectedView === 'month') {
-            return requestDate.getMonth() === selectedMonth;
-          }
-          return true; // For yearly view, include all requests
-        });
+      })) as Request[];
 
-      // Calculate basic stats from filtered requests
+      const users = usersSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as User[];
+
+      // Filter requests based on selected month/year
+      const filteredRequests = requests.filter(request => {
+        const requestDate = request.createdAt.toDate();
+        if (selectedView === 'month') {
+          return requestDate.getMonth() === selectedMonth;
+        }
+        return true; // For yearly view, include all requests
+      });
+
+      // Calculate basic stats
       const totalRequests = filteredRequests.filter(r => r.status !== 'cancelled').length;
       const approvedRequests = filteredRequests.filter(r => r.status === 'approved').length;
       const rejectedRequests = filteredRequests.filter(r => r.status === 'rejected').length;
       const pendingRequests = filteredRequests.filter(r => r.status === 'pending').length;
 
-      // Calculate requests by type (excluding cancelled)
+      // Calculate requests by type
       const requestsByType = filteredRequests
         .filter(r => r.status !== 'cancelled')
-        .reduce((acc, request) => {
+        .reduce((acc: Record<string, number>, request) => {
           acc[request.type] = (acc[request.type] || 0) + 1;
           return acc;
-        }, {} as Record<string, number>);
+        }, {});
 
-      // Calculate requests by month (excluding cancelled)
+      // Calculate requests by month
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const requestsByMonth = months.map(month => ({
         month,
@@ -103,30 +110,16 @@ export default function Reports() {
       }));
 
       // Calculate employee stats
-      const employeeStats = users.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-      })) as User[]
+      const employeeStats: EmployeeStats[] = users
         .filter(u => u.roles.includes('employee'))
         .map(employee => {
           const employeeRequests = filteredRequests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
           const extraShiftRequests = employeeRequests.filter(r => r.type === 'extra_shift');
           const vacationRequests = employeeRequests.filter(r => r.type === 'vacation');
           
-          // Calculate total vacation days (excluding cancelled)
-          const totalVacationDays = vacationRequests.reduce((total, request) => {
-            if (request.endDate && request.startDate) {
-              const start = request.startDate.toDate();
-              const end = request.endDate.toDate();
-              return total + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-            }
-            return total + 1; // Default to 1 day if no end date
-          }, 0);
-
-          // Calculate approved vacation days
-          const approvedVacationDays = vacationRequests
-            .filter(r => r.status === 'approved')
-            .reduce((total, request) => {
+          // Calculate vacation days
+          const calculateDays = (requests: Request[]) => {
+            return requests.reduce((total, request) => {
               if (request.endDate && request.startDate) {
                 const start = request.startDate.toDate();
                 const end = request.endDate.toDate();
@@ -134,18 +127,11 @@ export default function Reports() {
               }
               return total + 1;
             }, 0);
+          };
 
-          // Calculate rejected vacation days
-          const rejectedVacationDays = vacationRequests
-            .filter(r => r.status === 'rejected')
-            .reduce((total, request) => {
-              if (request.endDate && request.startDate) {
-                const start = request.startDate.toDate();
-                const end = request.endDate.toDate();
-                return total + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-              }
-              return total + 1;
-            }, 0);
+          const totalVacationDays = calculateDays(vacationRequests);
+          const approvedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
+          const rejectedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'rejected'));
           
           return {
             name: employee.name,
