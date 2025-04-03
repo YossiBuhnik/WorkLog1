@@ -2,6 +2,8 @@
 
 A web application for managing employee requests for extra shifts and vacations. Built with Next.js 14, TypeScript, and Firebase.
 
+[![Deployment Status](https://img.shields.io/badge/deployment-active-green)](https://worklog-git-deploy-fix-yossibuhnik.vercel.app/)
+
 ## Features
 
 - Employee request submission for extra shifts and vacations
