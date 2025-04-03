@@ -1,8 +1,12 @@
-# Employee Request Management System
+# WorkLog
 
 A web application for managing employee requests for extra shifts and vacations. Built with Next.js 14, TypeScript, and Firebase.
 
 [![Deployment Status](https://img.shields.io/badge/deployment-active-green)](https://worklog-git-deploy-fix-yossibuhnik.vercel.app/)
+
+## Deployment
+
+This project is deployed on Vercel. The main deployment branch is `deploy-fix`.
 
 ## Features
 
@@ -41,7 +45,3 @@ A web application for managing employee requests for extra shifts and vacations.
    npm run dev
    ```
 5. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-## Deployment
-
-This application is configured for deployment on Vercel.
