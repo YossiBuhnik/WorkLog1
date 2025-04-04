@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/firebase';
 import { getDocuments } from '@/lib/firebase/firebaseUtils';
 import { User } from '@/lib/types';
 import { toast } from 'react-hot-toast';
-import EmployeeCard from '@/components/EmployeeCard';
+import EmployeeCard from '@/app/components/EmployeeCard';
 
 export default function EmployeesPage() {
   const { user } = useAuth();

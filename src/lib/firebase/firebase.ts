@@ -12,8 +12,26 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Debug logging
+console.log('Firebase config:', {
+  apiKey: firebaseConfig.apiKey ? 'set' : 'missing',
+  authDomain: firebaseConfig.authDomain ? 'set' : 'missing',
+  projectId: firebaseConfig.projectId ? 'set' : 'missing',
+  storageBucket: firebaseConfig.storageBucket ? 'set' : 'missing',
+  messagingSenderId: firebaseConfig.messagingSenderId ? 'set' : 'missing',
+  appId: firebaseConfig.appId ? 'set' : 'missing',
+});
+
 // Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+let app;
+try {
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Error initializing Firebase:', error);
+  throw error;
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
