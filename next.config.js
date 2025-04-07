@@ -12,22 +12,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  distDir: '.next',
-  webpack: (config, { dev, isServer }) => {
-    // Use development version of React
-    if (!dev) {
-      Object.assign(config.resolve.alias, {
-        'react': 'react/profiling',
-        'react-dom': 'react-dom/profiling',
-        'scheduler/tracing': 'scheduler/tracing-profiling',
-      });
-    }
-    return config;
-  },
-  // Indicate where the app directory is located
-  experimental: {
-    appDir: true,
-  }
+  distDir: '.next'
 }
 
 module.exports = nextConfig 
