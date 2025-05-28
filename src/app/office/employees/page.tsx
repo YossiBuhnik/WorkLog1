@@ -8,7 +8,6 @@ import { db } from '@/lib/firebase/firebase';
 import { getDocuments } from '@/lib/firebase/firebaseUtils';
 import { User } from '@/lib/types';
 import { toast } from 'react-hot-toast';
-import EmployeeCard from '@/components/EmployeeCard';
 
 export default function EmployeesPage() {
   const { user } = useAuth();
@@ -45,10 +44,27 @@ export default function EmployeesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">{t('employees.title')}</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {employees.map(employee => (
-          <EmployeeCard key={employee.id} employee={employee} />
-        ))}
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white rounded-lg shadow-md">
+          <thead>
+            <tr>
+              <th className="px-4 py-2">No.</th>
+              <th className="px-4 py-2">Full Name</th>
+              <th className="px-4 py-2">Email</th>
+              <th className="px-4 py-2">Role(s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map((employee, idx) => (
+              <tr key={employee.id} className="border-t">
+                <td className="px-4 py-2">{idx + 1}</td>
+                <td className="px-4 py-2">{employee.displayName || employee.name || employee.email}</td>
+                <td className="px-4 py-2">{employee.email}</td>
+                <td className="px-4 py-2">{employee.roles.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
