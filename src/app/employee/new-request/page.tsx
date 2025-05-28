@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { createRequest, getDocuments } from '@/lib/firebase/firebaseUtils';
-import { RequestType, User } from '@/lib/types';
+import { User } from '@/lib/types';
 import toast from 'react-hot-toast';
 import { Timestamp } from 'firebase/firestore';
 
-export default function NewRequest() {
+// Define RequestType here since it's not in types.ts
+export type RequestType = 'vacation' | 'extra_shift';
+
+function NewRequestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, hasRole } = useAuth();
@@ -205,5 +208,13 @@ export default function NewRequest() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NewRequest() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewRequestContent />
+    </Suspense>
   );
 } 
