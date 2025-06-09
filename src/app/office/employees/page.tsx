@@ -18,6 +18,8 @@ export default function EmployeesPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState<string>('');
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -72,6 +74,27 @@ export default function EmployeesPage() {
     setUserToDelete(null);
   };
 
+  const handleEditName = (user: User) => {
+    setEditingUserId(user.id);
+    setEditName(user.displayName || '');
+  };
+
+  const handleSaveName = async (user: User) => {
+    try {
+      await updateUser(user.id, { displayName: editName });
+      setEmployees((prev) => prev.map((u) => u.id === user.id ? { ...u, displayName: editName } : u));
+      setEditingUserId(null);
+      setEditName('');
+    } catch (error) {
+      toast.error('Failed to update name');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUserId(null);
+    setEditName('');
+  };
+
   useEffect(() => {
     console.log('DEBUG: user object in EmployeesPage:', user);
     if (user) {
@@ -106,7 +129,44 @@ export default function EmployeesPage() {
             {employees.map((employee, idx) => (
               <tr key={employee.id} className="border-t">
                 <td className="px-4 py-2">{idx + 1}</td>
-                <td className="px-4 py-2">{employee.displayName || employee.email}</td>
+                <td className="px-4 py-2">
+                  {user?.roles.includes('office') ? (
+                    editingUserId === employee.id ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          className="border rounded px-2 py-1"
+                        />
+                        <button
+                          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-xs"
+                          onClick={() => handleSaveName(employee)}
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="px-2 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 text-xs"
+                          onClick={handleCancelEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <span>{employee.displayName || employee.email}</span>
+                        <button
+                          className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                          onClick={() => handleEditName(employee)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    employee.displayName || employee.email
+                  )}
+                </td>
                 <td className="px-4 py-2">{employee.email}</td>
                 <td className="px-4 py-2">
                   {user?.roles.includes('office') ? (
