@@ -10,7 +10,7 @@ import { User, UserRole } from '@/lib/types';
 import { toast } from 'react-hot-toast';
 
 export default function EmployeesPage() {
-  const { user } = useAuth();
+  const { user, loading: userLoading } = useAuth();
   const { t } = useTranslation();
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +52,7 @@ export default function EmployeesPage() {
     fetchEmployees();
   }, [fetchEmployees]);
 
-  if (loading) {
+  if (loading || userLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
