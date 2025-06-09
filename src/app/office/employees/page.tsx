@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
-import { getDocuments, updateUser } from '@/lib/firebase/firebaseUtils';
+import { getDocuments, updateUser, deleteDocument } from '@/lib/firebase/firebaseUtils';
 import { User, UserRole } from '@/lib/types';
 import { toast } from 'react-hot-toast';
 
@@ -15,6 +15,9 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -45,6 +48,28 @@ export default function EmployeesPage() {
     } finally {
       setUpdatingRoleId(null);
     }
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setShowConfirm(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      await deleteDocument('users', userToDelete.id);
+      setEmployees((prev) => prev.filter((u) => u.id !== userToDelete.id));
+      setShowConfirm(false);
+      setUserToDelete(null);
+    } catch (error) {
+      toast.error('Failed to delete user');
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowConfirm(false);
+    setUserToDelete(null);
   };
 
   useEffect(() => {
@@ -104,6 +129,12 @@ export default function EmployeesPage() {
                           </span>
                         </label>
                       ))}
+                      <button
+                        className="mt-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs w-fit"
+                        onClick={() => handleDeleteUser(employee)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   ) : (
                     employee.roles.join(', ')
@@ -114,6 +145,28 @@ export default function EmployeesPage() {
           </tbody>
         </table>
       </div>
+      {showConfirm && userToDelete && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+          <div className="bg-white rounded-lg p-6 shadow-lg max-w-sm w-full">
+            <h2 className="text-lg font-semibold mb-4">Remove user?</h2>
+            <p className="mb-6">Would you like to remove <span className="font-bold">{userToDelete.displayName || userToDelete.email}</span>?</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
