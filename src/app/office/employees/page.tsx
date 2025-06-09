@@ -84,8 +84,9 @@ export default function EmployeesPage() {
                 <td className="px-4 py-2">{employee.displayName || employee.email}</td>
                 <td className="px-4 py-2">{employee.email}</td>
                 <td className="px-4 py-2">
-                  {/* DEBUG: Temporarily always show the dropdown for testing */}
+                  {/* DEBUG: Always show the dropdown for testing */}
                   <div className="flex items-center space-x-2">
+                    <span style={{ color: 'red', fontWeight: 'bold' }}>DROPDOWN DEBUG</span>
                     <select
                       multiple
                       className="border rounded px-2 py-1"
@@ -102,6 +103,7 @@ export default function EmployeesPage() {
                         </option>
                       ))}
                     </select>
+                    <button style={{ background: 'yellow', color: 'black' }}>Test Button</button>
                     {updatingRoleId === employee.id && (
                       <span className="text-xs text-gray-400 ml-2">Updating...</span>
                     )}
