@@ -66,6 +66,9 @@ export default function EmployeesPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <div style={{ background: 'red', color: 'white', fontWeight: 'bold', fontSize: '2rem', padding: '1rem', textAlign: 'center' }}>
+        DEBUG BANNER: employees/page.tsx is rendering
+      </div>
       <h1 className="text-2xl font-bold mb-6">{t('employees.title')}</h1>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg shadow-md">
