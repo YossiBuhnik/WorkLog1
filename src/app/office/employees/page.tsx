@@ -49,6 +49,10 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     console.log('DEBUG: user object in EmployeesPage:', user);
+    if (user) {
+      console.log('DEBUG: user.roles:', user.roles);
+      console.log('DEBUG: user?.roles.includes("office"):', user.roles?.includes('office'));
+    }
     fetchEmployees();
   }, [fetchEmployees]);
 
@@ -80,31 +84,28 @@ export default function EmployeesPage() {
                 <td className="px-4 py-2">{employee.displayName || employee.email}</td>
                 <td className="px-4 py-2">{employee.email}</td>
                 <td className="px-4 py-2">
-                  {user?.roles.includes('office') ? (
-                    <div className="flex items-center space-x-2">
-                      <select
-                        multiple
-                        className="border rounded px-2 py-1"
-                        value={employee.roles}
-                        onChange={e => {
-                          const options = Array.from(e.target.selectedOptions).map(opt => opt.value as UserRole);
-                          handleRoleChange(employee.id, options);
-                        }}
-                        disabled={updatingRoleId === employee.id}
-                      >
-                        {(['employee', 'manager', 'office'] as UserRole[]).map(role => (
-                          <option key={role} value={role}>
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                      {updatingRoleId === employee.id && (
-                        <span className="text-xs text-gray-400 ml-2">Updating...</span>
-                      )}
-                    </div>
-                  ) : (
-                    employee.roles.join(', ')
-                  )}
+                  {/* DEBUG: Temporarily always show the dropdown for testing */}
+                  <div className="flex items-center space-x-2">
+                    <select
+                      multiple
+                      className="border rounded px-2 py-1"
+                      value={employee.roles}
+                      onChange={e => {
+                        const options = Array.from(e.target.selectedOptions).map(opt => opt.value as UserRole);
+                        handleRoleChange(employee.id, options);
+                      }}
+                      disabled={updatingRoleId === employee.id}
+                    >
+                      {(['employee', 'manager', 'office'] as UserRole[]).map(role => (
+                        <option key={role} value={role}>
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                    {updatingRoleId === employee.id && (
+                      <span className="text-xs text-gray-400 ml-2">Updating...</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
