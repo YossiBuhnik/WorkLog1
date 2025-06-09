@@ -66,9 +66,6 @@ export default function EmployeesPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div style={{ background: 'red', color: 'white', fontWeight: 'bold', fontSize: '2rem', padding: '1rem', textAlign: 'center' }}>
-        DEBUG BANNER: employees/page.tsx is rendering
-      </div>
       <h1 className="text-2xl font-bold mb-6">{t('employees.title')}</h1>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg shadow-md">
@@ -87,30 +84,30 @@ export default function EmployeesPage() {
                 <td className="px-4 py-2">{employee.displayName || employee.email}</td>
                 <td className="px-4 py-2">{employee.email}</td>
                 <td className="px-4 py-2">
-                  {/* DEBUG: Always show the dropdown for testing */}
-                  <div className="flex items-center space-x-2">
-                    <span style={{ color: 'red', fontWeight: 'bold' }}>DROPDOWN DEBUG</span>
-                    <select
-                      multiple
-                      className="border rounded px-2 py-1"
-                      value={employee.roles}
-                      onChange={e => {
-                        const options = Array.from(e.target.selectedOptions).map(opt => opt.value as UserRole);
-                        handleRoleChange(employee.id, options);
-                      }}
-                      disabled={updatingRoleId === employee.id}
-                    >
+                  {user?.roles.includes('office') ? (
+                    <div className="flex flex-col space-y-1">
                       {(['employee', 'manager', 'office'] as UserRole[]).map(role => (
-                        <option key={role} value={role}>
-                          {role.charAt(0).toUpperCase() + role.slice(1)}
-                        </option>
+                        <label key={role} className="inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={employee.roles.includes(role)}
+                            onChange={e => {
+                              const newRoles = e.target.checked
+                                ? [...employee.roles, role]
+                                : employee.roles.filter(r => r !== role);
+                              handleRoleChange(employee.id, newRoles as UserRole[]);
+                            }}
+                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-2"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                          </span>
+                        </label>
                       ))}
-                    </select>
-                    <button style={{ background: 'yellow', color: 'black' }}>Test Button</button>
-                    {updatingRoleId === employee.id && (
-                      <span className="text-xs text-gray-400 ml-2">Updating...</span>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    employee.roles.join(', ')
+                  )}
                 </td>
               </tr>
             ))}
