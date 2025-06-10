@@ -17,12 +17,15 @@ export default function EmployeeDashboard() {
   const [loadingRequests, setLoadingRequests] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    console.log('EmployeeDashboard:', { user, loading });
+    if (loading) return; // Wait for loading to finish
+
+    if (!user) {
       router.push('/auth/login');
       return;
     }
 
-    if (!loading && !hasRole('employee')) {
+    if (!hasRole('employee')) {
       router.push('/');
       return;
     }

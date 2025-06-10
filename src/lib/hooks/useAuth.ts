@@ -29,9 +29,11 @@ export const useAuth = (): UseAuthReturn => {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      console.log('onAuthStateChanged:', firebaseUser);
       if (firebaseUser) {
         try {
           const userData = await getUser(firebaseUser.uid);
+          console.log('Fetched userData:', userData);
           setUser(userData);
           setFirebaseUser(firebaseUser);
         } catch (err) {
