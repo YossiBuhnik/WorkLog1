@@ -34,9 +34,9 @@ export default function RegisterPage() {
       
       // Create user document in Firestore with the same ID as Auth user
       await createUser({
-        name,
+        displayName: name,
         email: firebaseUser.email || email,
-        phoneNumber: firebaseUser.phoneNumber || '',
+        photoURL: null,
         roles: ['employee'],
       });
 
