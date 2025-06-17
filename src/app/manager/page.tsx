@@ -31,6 +31,7 @@ export default function ManagerDashboard() {
           );
           
           setEmployees(employeeMap);
+          console.log('ManagerDashboard: managerRequests', managerRequests);
           setRequests(managerRequests);
         } catch (error) {
           console.error('Error fetching data:', error);
@@ -106,7 +107,7 @@ export default function ManagerDashboard() {
                       {t(request.type === 'extra_shift' ? 'extra.shift' : 'vacation')}
                     </span>
                     <p className="mt-1 text-sm font-medium text-gray-900">
-                      {employee?.name || t('unknown.employee')}
+                      {employee?.displayName || employee?.email || t('unknown.employee')}
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
