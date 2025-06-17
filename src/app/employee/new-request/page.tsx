@@ -168,7 +168,6 @@ function NewRequestContent() {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
-              min={requestType === 'vacation' ? new Date().toISOString().split('T')[0] : undefined}
               className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
           </div>
