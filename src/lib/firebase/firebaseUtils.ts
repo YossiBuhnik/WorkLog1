@@ -190,24 +190,18 @@ export const getRequestsByEmployee = async (employeeId: string) => {
   );
 };
 
-export const getRequestsByManager = async (managerId: string) => {
+export const getRequestsByManager = async () => {
   const q = query(
     collection(db, 'requests'),
-    where('managerId', '==', managerId)
+    where('status', '==', 'pending')
   );
-  
   const querySnapshot = await getDocs(q);
   const requests = querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id,
   })) as Request[];
-  
-  // Filter and sort in memory using Timestamp seconds
-  return requests
-    .filter(request => request.status === 'pending')
-    .sort((a, b) => 
-      b.createdAt.seconds - a.createdAt.seconds
-    );
+  // Sort in memory using Timestamp seconds
+  return requests.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 };
 
 // Work Log Management

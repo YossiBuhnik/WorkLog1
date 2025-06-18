@@ -21,7 +21,7 @@ export default function ManagerDashboard() {
         try {
           // Fetch requests and employees in parallel
           const [managerRequests, employeesData] = await Promise.all([
-            getRequestsByManager(user.id),
+            getRequestsByManager(),
             getDocuments('users') as Promise<User[]>
           ]);
 
