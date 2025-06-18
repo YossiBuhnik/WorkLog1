@@ -134,7 +134,7 @@ export default function Reports() {
           const rejectedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'rejected'));
           
           return {
-            name: employee.name,
+            name: employee.displayName || employee.email || 'Unknown',
             totalRequests: employeeRequests.length,
             extraShifts: {
               total: extraShiftRequests.length,
