@@ -167,11 +167,19 @@ export default function Reports() {
             // Add more years as needed
           };
 
+          // Helper to format a date as YYYY-MM-DD in its local timezone
+          function toLocalDateString(date: Date): string {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+
           function isWorkday(date: Date, holidays: string[]): boolean {
             const day = date.getDay();
             // Sunday (0) to Thursday (4) are workdays
-            if (day < 0 || day > 4) return false;
-            const dateStr = date.toISOString().slice(0, 10);
+            if (day > 4) return false; // Friday and Saturday are not workdays
+            const dateStr = toLocalDateString(date); // Use local date, not UTC
             return !holidays.includes(dateStr);
           }
 
