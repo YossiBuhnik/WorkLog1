@@ -23,6 +23,8 @@ interface EmployeeStats {
     approved: number;
     rejected: number;
   };
+  vacationBreakdown?: { start: string; end: string; days: number }[];
+  debug?: string;
 }
 
 type RequestStats = {
@@ -40,14 +42,31 @@ type RequestStats = {
   employeeStats: EmployeeStats[];
 };
 
+console.log('REPORTS PAGE LOADED - OUTSIDE COMPONENT');
+
 export default function Reports() {
-  const { user, loading } = useAuth();
-  const { t } = useTranslation();
+  console.log('REPORTS COMPONENT RENDERING - TOP');
+  
+  let user, loading, t;
+
+  try {
+    ({ user, loading } = useAuth());
+    ({ t } = useTranslation());
+  } catch (error) {
+    console.error('Error during custom hook initialization:', error);
+    // Render a fallback or return null to prevent crashing
+    return <div>Error loading page. Please check the console.</div>;
+  }
+
   const [stats, setStats] = useState<RequestStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11 for Jan-Dec
   const [selectedView, setSelectedView] = useState<'month' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'trends' | 'employees'>('employees');
+
+  useEffect(() => {
+    console.log('REPORTS COMPONENT useEffect triggered');
+  }, []);
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
@@ -70,11 +89,20 @@ export default function Reports() {
 
       // Filter requests based on selected month/year
       const filteredRequests = requests.filter(request => {
-        const requestDate = request.createdAt.toDate();
-        if (selectedView === 'month') {
-          return requestDate.getMonth() === selectedMonth;
-        }
-        return true; // For yearly view, include all requests
+        if (selectedView === 'year') return true;
+        // For monthly view, include if any part of the request occurs in the selected month
+        const start = request.startDate?.toDate?.();
+        const end = request.endDate?.toDate?.() || start;
+        if (!start) return false;
+        // Check if any part of the request is in the selected month
+        // (start or end is in the month, or the range covers the month)
+        const month = selectedMonth;
+        const year = new Date().getFullYear();
+        const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+        return (
+          (start <= monthEnd && end >= monthStart)
+        );
       });
 
       // Calculate basic stats
@@ -113,25 +141,151 @@ export default function Reports() {
       const employeeStats: EmployeeStats[] = users
         .filter(u => u.roles.includes('employee'))
         .map(employee => {
-          const employeeRequests = filteredRequests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
+          // For vacation day count, use all vacation requests for this employee
+          const employeeRequests = requests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
           const extraShiftRequests = employeeRequests.filter(r => r.type === 'extra_shift');
           const vacationRequests = employeeRequests.filter(r => r.type === 'vacation');
           
-          // Calculate vacation days
+          // Calculate vacation days (workdays only, excluding Jewish holidays)
+          const jewishHolidays: { [year: number]: string[] } = {
+            2024: [
+              '2024-04-23', // Pesach 1
+              '2024-04-24', // Pesach 2
+              '2024-04-29', // Pesach 7
+              '2024-04-30', // Pesach 8
+              '2024-06-12', // Shavuot
+              '2024-10-03', // Rosh Hashanah 1
+              '2024-10-04', // Rosh Hashanah 2
+              '2024-10-12', // Yom Kippur
+              '2024-10-17', // Sukkot 1
+              '2024-10-18', // Sukkot 2
+              '2024-10-24', // Shemini Atzeret
+              '2024-10-25', // Simchat Torah
+            ],
+            2025: [
+              '2025-04-13', // Pesach 1
+              '2025-04-14', // Pesach 2
+              '2025-04-19', // Pesach 7
+              '2025-04-20', // Pesach 8
+              '2025-06-02', // Shavuot
+              '2025-09-23', // Rosh Hashanah 1
+              '2025-09-24', // Rosh Hashanah 2
+              '2025-10-02', // Yom Kippur
+              '2025-10-07', // Sukkot 1
+              '2025-10-08', // Sukkot 2
+              '2025-10-14', // Shemini Atzeret
+              '2025-10-15', // Simchat Torah
+            ],
+            // Add more years as needed
+          };
+
+          function isWorkday(date: Date, holidays: string[]): boolean {
+            const day = date.getDay();
+            // Sunday (0) to Thursday (4) are workdays
+            if (day < 0 || day > 4) return false;
+            // Format date as YYYY-MM-DD
+            const dateStr = date.toISOString().slice(0, 10);
+            return !holidays.includes(dateStr);
+          }
+
+          function countWorkdays(start: Date, end: Date): number {
+            let count = 0;
+            let current = new Date(start);
+            const holidays = jewishHolidays[start.getFullYear()] || [];
+            // Add one day to end date to ensure inclusivity
+            const inclusiveEnd = new Date(end);
+            inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);
+            while (current < inclusiveEnd) {
+              if (isWorkday(current, holidays)) count++;
+              current.setDate(current.getDate() + 1);
+            }
+            // Fix: Always add +1 to ensure both start and end are included
+            return count;
+          }
+
           const calculateDays = (requests: Request[]) => {
             return requests.reduce((total, request) => {
               if (request.endDate && request.startDate) {
                 const start = request.startDate.toDate();
                 const end = request.endDate.toDate();
-                return total + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                const days = countWorkdays(start, end);
+                console.log('[Vacation Debug]', {
+                  employee: employee.displayName || employee.email,
+                  start: start.toString(),
+                  end: end.toString(),
+                  days
+                });
+                return total + days;
               }
-              return total + 1;
+              // Single day request
+              if (request.startDate) {
+                const start = request.startDate.toDate();
+                const isWork = isWorkday(start, jewishHolidays[start.getFullYear()] || []);
+                console.log('[Vacation Debug - Single Day]', {
+                  employee: employee.displayName || employee.email,
+                  start: start.toString(),
+                  isWork
+                });
+                return total + (isWork ? 1 : 0);
+              }
+              return total;
             }, 0);
           };
 
           const totalVacationDays = calculateDays(vacationRequests);
           const approvedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
           const rejectedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'rejected'));
+          
+          // DEBUG: Print all vacation requests for this employee
+          if (vacationRequests.length > 0) {
+            console.log('[Vacation Debug - All]', {
+              employee: employee.displayName || employee.email,
+              requests: vacationRequests.map(r => ({
+                start: r.startDate?.toDate?.().toString?.(),
+                end: r.endDate?.toDate?.().toString?.(),
+                status: r.status
+              }))
+            });
+          }
+          
+          // Build vacation breakdown for debug table and log to console
+          const vacationBreakdown = vacationRequests.map(request => {
+            if (request.endDate && request.startDate) {
+              const start = request.startDate.toDate();
+              const end = request.endDate.toDate();
+              const days = countWorkdays(start, end);
+              console.log('[Vacation Debug]', {
+                employee: employee.displayName || employee.email,
+                start: start.toLocaleDateString(),
+                end: end.toLocaleDateString(),
+                days
+              });
+              return {
+                start: start.toLocaleDateString(),
+                end: end.toLocaleDateString(),
+                days
+              };
+            } else if (request.startDate) {
+              const start = request.startDate.toDate();
+              const days = isWorkday(start, jewishHolidays[start.getFullYear()] || []) ? 1 : 0;
+              console.log('[Vacation Debug - Single Day]', {
+                employee: employee.displayName || employee.email,
+                start: start.toLocaleDateString(),
+                days
+              });
+              return {
+                start: start.toLocaleDateString(),
+                end: start.toLocaleDateString(),
+                days
+              };
+            }
+            return { start: '', end: '', days: 0 };
+          });
+          
+          console.log('[Vacation Debug - Total]', {
+            employee: employee.displayName || employee.email,
+            totalVacationDays
+          });
           
           return {
             name: employee.displayName || employee.email || 'Unknown',
@@ -146,6 +300,9 @@ export default function Reports() {
               approved: approvedVacationDays,
               rejected: rejectedVacationDays,
             },
+            vacationBreakdown,
+            // DEBUG: Add debug info to UI
+            debug: vacationRequests.length > 0 ? vacationRequests.map(r => `${r.startDate?.toDate?.().toLocaleDateString?.()} - ${r.endDate?.toDate?.().toLocaleDateString?.()} (${r.status})`).join(', ') : undefined
           };
         })
         .sort((a, b) => b.totalRequests - a.totalRequests);
@@ -230,6 +387,12 @@ export default function Reports() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* DEBUG: Show vacation debug info for each employee, always visible */}
+      {/* (Remove this banner after confirming the fix) */}
+      {/* <div style={{color: 'red', fontWeight: 'bold', marginBottom: 16, border: '2px solid red', padding: 8, background: '#fff0f0'}}>
+        <span>DEBUG VACATION REQUESTS: </span>
+        {stats?.employeeStats.map(e => e.debug ? `${e.name}: ${e.debug}` : null).filter(Boolean).join(' | ') || 'No vacation requests found.'}
+      </div> */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('reports.and.analytics')}</h1>
@@ -357,6 +520,36 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
+          {/* DEBUG: Vacation breakdown table for each employee (always visible) */}
+          <div className="bg-yellow-50 p-4 mt-4 rounded shadow">
+            <h4 className="font-bold text-yellow-800 mb-2">Vacation Days Debug Table</h4>
+            <table className="min-w-full divide-y divide-gray-200 text-xs">
+              <thead>
+                <tr>
+                  <th className="px-2 py-1">Employee</th>
+                  <th className="px-2 py-1">Start Date</th>
+                  <th className="px-2 py-1">End Date</th>
+                  <th className="px-2 py-1">Counted Workdays</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats?.employeeStats.some(e => e.vacationBreakdown && e.vacationBreakdown.length > 0) ? (
+                  stats?.employeeStats.map((employee, idx) => (
+                    employee.vacationBreakdown?.length ? employee.vacationBreakdown.map((v, i) => (
+                      <tr key={employee.name + '-' + i}>
+                        <td className="px-2 py-1">{employee.name}</td>
+                        <td className="px-2 py-1">{v.start}</td>
+                        <td className="px-2 py-1">{v.end}</td>
+                        <td className="px-2 py-1">{v.days}</td>
+                      </tr>
+                    )) : null
+                  ))
+                ) : (
+                  <tr><td colSpan={4} className="text-center text-yellow-700">No vacation requests found for any employee.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="bg-white p-6 rounded-lg shadow">
