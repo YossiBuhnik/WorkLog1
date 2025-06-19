@@ -94,9 +94,11 @@ export default function Reports() {
         for (const year in holidaysByYear) {
           const eves = new Set<string>();
           holidaysByYear[year].forEach((holidayStr: string) => {
-            const holidayDate = new Date(`${holidayStr}T00:00:00`);
-            holidayDate.setDate(holidayDate.getDate() - 1);
-            eves.add(toLocalDateString(holidayDate));
+            const [y, m, d] = holidayStr.split('-').map(Number);
+            const holidayUTC = new Date(Date.UTC(y, m - 1, d));
+            holidayUTC.setUTCDate(holidayUTC.getUTCDate() - 1);
+            const eveStr = holidayUTC.toISOString().slice(0, 10);
+            eves.add(eveStr);
           });
           const originalHolidays = new Set(holidaysByYear[year]);
           const combinedHolidays = new Set([...Array.from(originalHolidays), ...Array.from(eves)]);
@@ -124,10 +126,9 @@ export default function Reports() {
         const inclusiveEnd = new Date(end);
         inclusiveEnd.setHours(23, 59, 59, 999);
 
-        const year = current.getFullYear();
-        const holidaysForYear = holidaysWithEves[year] || [];
-
         while (current <= inclusiveEnd) {
+          const year = current.getFullYear();
+          const holidaysForYear = holidaysWithEves[year] || [];
           const isInFilter = filter
             ? current >= filter.start && current <= filter.end
             : true;
