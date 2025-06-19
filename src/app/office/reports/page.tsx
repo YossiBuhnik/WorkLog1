@@ -191,15 +191,19 @@ export default function Reports() {
           function countWorkdays(start: Date, end: Date): number {
             let count = 0;
             let current = new Date(start);
-            const holidays = jewishHolidays[start.getFullYear()] || [];
-            // Add one day to end date to ensure inclusivity
+            current.setHours(0, 0, 0, 0); // Normalize start date
+            
             const inclusiveEnd = new Date(end);
-            inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);
-            while (current < inclusiveEnd) {
-              if (isWorkday(current, holidays)) count++;
+            inclusiveEnd.setHours(23, 59, 59, 999); // Normalize end date to end of day
+
+            const holidays = jewishHolidays[start.getFullYear()] || [];
+
+            while (current <= inclusiveEnd) {
+              if (isWorkday(current, holidays)) {
+                count++;
+              }
               current.setDate(current.getDate() + 1);
             }
-            // Fix: Always add +1 to ensure both start and end are included
             return count;
           }
 
