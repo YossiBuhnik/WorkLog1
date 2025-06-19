@@ -47,17 +47,8 @@ console.log('REPORTS PAGE LOADED - OUTSIDE COMPONENT');
 export default function Reports() {
   console.log('REPORTS COMPONENT RENDERING - TOP');
   
-  let user, loading, t;
-
-  try {
-    ({ user, loading } = useAuth());
-    ({ t } = useTranslation());
-  } catch (error) {
-    console.error('Error during custom hook initialization:', error);
-    // Render a fallback or return null to prevent crashing
-    return <div>Error loading page. Please check the console.</div>;
-  }
-
+  const { user, loading } = useAuth();
+  const { t } = useTranslation();
   const [stats, setStats] = useState<RequestStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11 for Jan-Dec
@@ -87,22 +78,19 @@ export default function Reports() {
         id: doc.id,
       })) as User[];
 
-      // Filter requests based on selected month/year
+      // Define date range for filtering based on selected month/year
+      const year = new Date().getFullYear();
+      const monthStart = new Date(year, selectedMonth, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(year, selectedMonth + 1, 0, 23, 59, 59, 999);
+      const dateFilter = selectedView === 'month' ? { start: monthStart, end: monthEnd } : undefined;
+
+      // Filter requests for top-level stats
       const filteredRequests = requests.filter(request => {
         if (selectedView === 'year') return true;
-        // For monthly view, include if any part of the request occurs in the selected month
         const start = request.startDate?.toDate?.();
         const end = request.endDate?.toDate?.() || start;
         if (!start) return false;
-        // Check if any part of the request is in the selected month
-        // (start or end is in the month, or the range covers the month)
-        const month = selectedMonth;
-        const year = new Date().getFullYear();
-        const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
-        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
-        return (
-          (start <= monthEnd && end >= monthStart)
-        );
+        return start <= monthEnd && end >= monthStart;
       });
 
       // Calculate basic stats
@@ -183,113 +171,66 @@ export default function Reports() {
             const day = date.getDay();
             // Sunday (0) to Thursday (4) are workdays
             if (day < 0 || day > 4) return false;
-            // Format date as YYYY-MM-DD
             const dateStr = date.toISOString().slice(0, 10);
             return !holidays.includes(dateStr);
           }
 
-          function countWorkdays(start: Date, end: Date): number {
+          function countWorkdays(
+            start: Date, 
+            end: Date, 
+            filter?: { start: Date; end: Date }
+          ): number {
             let count = 0;
             let current = new Date(start);
-            current.setHours(0, 0, 0, 0); // Normalize start date
-            
+            current.setHours(0, 0, 0, 0);
+    
             const inclusiveEnd = new Date(end);
-            inclusiveEnd.setHours(23, 59, 59, 999); // Normalize end date to end of day
-
+            inclusiveEnd.setHours(23, 59, 59, 999);
+    
             const holidays = jewishHolidays[start.getFullYear()] || [];
-
+    
             while (current <= inclusiveEnd) {
-              if (isWorkday(current, holidays)) {
+              const isInFilter = filter 
+                ? current >= filter.start && current <= filter.end 
+                : true;
+    
+              if (isInFilter && isWorkday(current, holidays)) {
                 count++;
               }
               current.setDate(current.getDate() + 1);
             }
             return count;
           }
-
+    
           const calculateDays = (requests: Request[]) => {
             return requests.reduce((total, request) => {
               if (request.endDate && request.startDate) {
                 const start = request.startDate.toDate();
                 const end = request.endDate.toDate();
-                const days = countWorkdays(start, end);
-                console.log('[Vacation Debug]', {
-                  employee: employee.displayName || employee.email,
-                  start: start.toString(),
-                  end: end.toString(),
-                  days
-                });
+                // Pass the date filter to count only days within the selected month
+                const days = countWorkdays(start, end, dateFilter);
                 return total + days;
-              }
-              // Single day request
-              if (request.startDate) {
-                const start = request.startDate.toDate();
-                const isWork = isWorkday(start, jewishHolidays[start.getFullYear()] || []);
-                console.log('[Vacation Debug - Single Day]', {
-                  employee: employee.displayName || employee.email,
-                  start: start.toString(),
-                  isWork
-                });
-                return total + (isWork ? 1 : 0);
               }
               return total;
             }, 0);
           };
-
-          const totalVacationDays = calculateDays(vacationRequests);
-          const approvedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
-          const rejectedVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'rejected'));
-          
-          // DEBUG: Print all vacation requests for this employee
-          if (vacationRequests.length > 0) {
-            console.log('[Vacation Debug - All]', {
-              employee: employee.displayName || employee.email,
-              requests: vacationRequests.map(r => ({
-                start: r.startDate?.toDate?.().toString?.(),
-                end: r.endDate?.toDate?.().toString?.(),
-                status: r.status
-              }))
-            });
-          }
-          
-          // Build vacation breakdown for debug table and log to console
-          const vacationBreakdown = vacationRequests.map(request => {
-            if (request.endDate && request.startDate) {
+    
+          const totalVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
+    
+          // Create a detailed breakdown for the debug table
+          const vacationBreakdown = vacationRequests
+            .filter(r => r.status === 'approved')
+            .map(request => {
               const start = request.startDate.toDate();
               const end = request.endDate.toDate();
-              const days = countWorkdays(start, end);
-              console.log('[Vacation Debug]', {
-                employee: employee.displayName || employee.email,
-                start: start.toLocaleDateString(),
-                end: end.toLocaleDateString(),
-                days
-              });
+              const days = countWorkdays(start, end, dateFilter);
               return {
                 start: start.toLocaleDateString(),
                 end: end.toLocaleDateString(),
-                days
+                days,
               };
-            } else if (request.startDate) {
-              const start = request.startDate.toDate();
-              const days = isWorkday(start, jewishHolidays[start.getFullYear()] || []) ? 1 : 0;
-              console.log('[Vacation Debug - Single Day]', {
-                employee: employee.displayName || employee.email,
-                start: start.toLocaleDateString(),
-                days
-              });
-              return {
-                start: start.toLocaleDateString(),
-                end: start.toLocaleDateString(),
-                days
-              };
-            }
-            return { start: '', end: '', days: 0 };
-          });
-          
-          console.log('[Vacation Debug - Total]', {
-            employee: employee.displayName || employee.email,
-            totalVacationDays
-          });
+            })
+            .filter(item => item.days > 0); // Only show requests that have days in the current month
           
           return {
             name: employee.displayName || employee.email || 'Unknown',
@@ -301,8 +242,8 @@ export default function Reports() {
             },
             vacations: {
               total: totalVacationDays,
-              approved: approvedVacationDays,
-              rejected: rejectedVacationDays,
+              approved: vacationRequests.filter(r => r.status === 'approved').length,
+              rejected: vacationRequests.filter(r => r.status === 'rejected').length,
             },
             vacationBreakdown,
             // DEBUG: Add debug info to UI
