@@ -23,8 +23,6 @@ interface EmployeeStats {
     approved: number;
     rejected: number;
   };
-  vacationBreakdown?: { start: string; end: string; days: number }[];
-  debug?: string;
 }
 
 type RequestStats = {
@@ -234,20 +232,6 @@ export default function Reports() {
 
           const totalVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
 
-          const vacationBreakdown = vacationRequests
-            .filter(r => r.status === 'approved')
-            .map(request => {
-              const start = request.startDate.toDate();
-              const end = request.endDate.toDate();
-              const days = countWorkdays(start, end, dateFilter);
-              return {
-                start: start.toLocaleDateString(),
-                end: end.toLocaleDateString(),
-                days,
-              };
-            })
-            .filter(item => item.days > 0);
-          
           return {
             name: employee.displayName || employee.email || 'Unknown',
             totalRequests: monthlyFilteredRequests.length,
@@ -261,9 +245,6 @@ export default function Reports() {
               approved: vacationRequests.filter(r => r.status === 'approved').length,
               rejected: vacationRequests.filter(r => r.status === 'rejected').length,
             },
-            vacationBreakdown,
-            // DEBUG: Add debug info to UI
-            debug: vacationRequests.length > 0 ? vacationRequests.map(r => `${r.startDate?.toDate?.().toLocaleDateString?.()} - ${r.endDate?.toDate?.().toLocaleDateString?.()} (${r.status})`).join(', ') : undefined
           };
         })
       );
@@ -346,12 +327,6 @@ export default function Reports() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* DEBUG: Show vacation debug info for each employee, always visible */}
-      {/* (Remove this banner after confirming the fix) */}
-      {/* <div style={{color: 'red', fontWeight: 'bold', marginBottom: 16, border: '2px solid red', padding: 8, background: '#fff0f0'}}>
-        <span>DEBUG VACATION REQUESTS: </span>
-        {stats?.employeeStats.map(e => e.debug ? `${e.name}: ${e.debug}` : null).filter(Boolean).join(' | ') || 'No vacation requests found.'}
-      </div> */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('reports.and.analytics')}</h1>
@@ -389,7 +364,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-4 mb-6">
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-medium text-gray-900">{t('total.requests')}</h3>
@@ -409,7 +383,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Tab Buttons */}
       <div className="flex space-x-4 mb-6">
         <button
           onClick={() => setActiveTab('employees')}
@@ -433,7 +406,6 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Tab Content */}
       {activeTab === 'employees' ? (
         <div className="bg-white p-6 rounded-lg shadow overflow-x-auto">
           <h3 className="text-lg font-medium text-gray-900 mb-4">{t('employee.statistics')}</h3>
@@ -479,36 +451,6 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
-          {/* DEBUG: Vacation breakdown table for each employee (always visible) */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-8">
-            <h3 className="text-lg font-semibold text-yellow-800 mb-2">Vacation Days Debug Table</h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm text-left text-gray-700">
-                <thead className="bg-yellow-100 text-yellow-900">
-                  <tr>
-                    <th scope="col" className="px-6 py-3">Employee</th>
-                    <th scope="col" className="px-6 py-3">Start Date</th>
-                    <th scope="col" className="px-6 py-3">End Date</th>
-                    <th scope="col" className="px-6 py-3">Counted Workdays</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats?.employeeStats.flatMap(employee => 
-                    employee.vacationBreakdown && employee.vacationBreakdown.length > 0
-                      ? employee.vacationBreakdown.map((breakdown, index) => (
-                          <tr key={`${employee.name}-${index}`} className="bg-white border-b">
-                            <td className="px-6 py-4">{employee.name}</td>
-                            <td className="px-6 py-4">{breakdown.start}</td>
-                            <td className="px-6 py-4">{breakdown.end}</td>
-                            <td className="px-6 py-4 font-medium">{breakdown.days}</td>
-                          </tr>
-                        ))
-                      : []
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       ) : (
         <div className="bg-white p-6 rounded-lg shadow">
