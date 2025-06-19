@@ -216,22 +216,24 @@ export default function OfficeDashboard() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate flex items-center justify-between">
-                    <span>{t('approved.extra.shifts')}</span>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    {t('approved.extra.shifts')}
+                  </dt>
+                  <dd className="flex justify-between items-center">
+                    <span className="text-lg font-semibold text-gray-900">
+                      {stats.approvedExtraShiftsThisMonth}
+                    </span>
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                      className="ml-2 text-sm border-gray-300 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                      className="text-sm border-gray-300 rounded-md"
                     >
                       {months.map((month, index) => (
-                        <option key={month} value={index}>
+                        <option key={index} value={index}>
                           {month}
                         </option>
                       ))}
                     </select>
-                  </dt>
-                  <dd className="text-lg font-semibold text-gray-900">
-                    {stats.approvedExtraShiftsThisMonth}
                   </dd>
                 </dl>
               </div>
@@ -241,10 +243,12 @@ export default function OfficeDashboard() {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          {t('recent.activity')} - {months[selectedMonth]}
-        </h2>
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="px-4 py-5 sm:px-6">
+            <h2 className="text-lg leading-6 font-medium text-gray-900">
+              {t('recent.activity')} - {months[selectedMonth]}
+            </h2>
+          </div>
           {recentActivity.length > 0 ? (
             <div className="p-6">
               <ul role="list" className="divide-y divide-gray-200">
@@ -274,7 +278,7 @@ export default function OfficeDashboard() {
             </div>
           ) : (
             <div className="px-4 py-8 text-center text-gray-500">
-              {t('no.results')} {months[selectedMonth]}
+              <p>{t('no.activity.month')}</p>
             </div>
           )}
         </div>
