@@ -73,12 +73,14 @@ export default function OfficeDashboard() {
         ...doc.data(),
         id: doc.id,
       } as Request));
+      console.log('[Office Dashboard Debug] 1. Raw Requests:', activity);
 
       const userIds = new Set<string>();
       activity.forEach(req => {
         userIds.add(req.employeeId);
         if (req.approvedBy) userIds.add(req.approvedBy);
       });
+      console.log('[Office Dashboard Debug] 2. User IDs to Fetch:', Array.from(userIds));
 
       const usersMap = new Map<string, User>();
       if (userIds.size > 0) {
@@ -88,12 +90,14 @@ export default function OfficeDashboard() {
           usersMap.set(doc.id, { ...doc.data(), id: doc.id } as User);
         });
       }
+      console.log('[Office Dashboard Debug] 3. Fetched Users Map:', usersMap);
       
       const enhancedActivity = activity.map(req => ({
         ...req,
         employeeName: usersMap.get(req.employeeId)?.displayName || null,
         approvedByName: usersMap.get(req.approvedBy || '')?.displayName || null,
       }));
+      console.log('[Office Dashboard Debug] 4. Enhanced Activity:', enhancedActivity);
 
       setRecentActivity(enhancedActivity);
       
