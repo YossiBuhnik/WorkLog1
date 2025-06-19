@@ -27,7 +27,7 @@ export default function OfficeDashboard() {
     activeRequests: 0,
     approvedExtraShiftsThisMonth: 0,
   });
-  const [recentActivity, setRecentActivity] = useState<Request[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Array<Request & { employeeName?: string | null; approvedByName?: string | null }>>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const [managers, setManagers] = useState<Map<string, User>>(new Map());
   const [employees, setEmployees] = useState<Map<string, User>>(new Map());
@@ -68,15 +68,36 @@ export default function OfficeDashboard() {
     );
 
     // Subscribe to real-time updates
-    const unsubscribeActivity = onSnapshot(requestsQuery, (snapshot) => {
+    const unsubscribeActivity = onSnapshot(requestsQuery, async (snapshot) => {
       const activity = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
       } as Request));
-      setRecentActivity(activity);
+
+      const userIds = new Set<string>();
+      activity.forEach(req => {
+        userIds.add(req.employeeId);
+        if (req.approvedBy) userIds.add(req.approvedBy);
+      });
+
+      const usersMap = new Map<string, User>();
+      if (userIds.size > 0) {
+        const usersQuery = query(collection(db, 'users'), where('id', 'in', Array.from(userIds)));
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.forEach(doc => {
+          usersMap.set(doc.id, { ...doc.data(), id: doc.id } as User);
+        });
+      }
       
-      // Count approved extra shifts from the activity data
-      const approvedExtraShifts = activity.filter(req => 
+      const enhancedActivity = activity.map(req => ({
+        ...req,
+        employeeName: usersMap.get(req.employeeId)?.displayName || null,
+        approvedByName: usersMap.get(req.approvedBy || '')?.displayName || null,
+      }));
+
+      setRecentActivity(enhancedActivity);
+      
+      const approvedExtraShifts = enhancedActivity.filter(req => 
         req.type === 'extra_shift' && req.status === 'approved'
       ).length;
       
@@ -233,17 +254,17 @@ export default function OfficeDashboard() {
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium">
-                            {request.type === 'vacation' ? 'Vacation Request' : 'Extra Shift Request'} by {request.employeeName || 'Unknown'}
+                            {request.type === 'vacation' ? 'Vacation Request by' : 'Extra Shift Request by'} {request.employeeName || 'Unknown'}
                           </h3>
-                          <p className="text-sm text-gray-500">{t('request.date')}: {request.createdAt.toDate().toLocaleDateString()}</p>
+                          <p className="text-sm text-gray-500">{`Request Date: ${request.createdAt.toDate().toLocaleDateString()}`}</p>
                         </div>
                         <p className="text-sm text-gray-500">
-                          {t('status.label')}: {t(`status.${request.status}`)} {request.status === 'approved' && `by ${request.approvedBy || 'N/A'}`}
+                          {`Status: ${request.status}`}{request.status === 'approved' && ` by ${request.approvedByName || 'N/A'}`}
                         </p>
                         <p className="text-sm text-gray-500">
                           {request.type === 'extra_shift'
-                            ? `${t('shift.date')}: ${request.startDate.toDate().toLocaleDateString()}`
-                            : `${t('dates')}: ${request.startDate.toDate().toLocaleDateString()} - ${request.endDate?.toDate().toLocaleDateString()}`}
+                            ? `Shift Date: ${request.startDate.toDate().toLocaleDateString()}`
+                            : `Dates: ${request.startDate.toDate().toLocaleDateString()} - ${request.endDate?.toDate().toLocaleDateString()}`}
                         </p>
                       </div>
                     </div>

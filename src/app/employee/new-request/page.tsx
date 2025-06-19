@@ -87,7 +87,6 @@ function NewRequestContent() {
       const requestData = {
         type: requestType,
         employeeId: user.id,
-        employeeName: user.displayName || user.email,
         managerId: managerId,
         startDate: Timestamp.fromDate(startDateTime),
         ...(requestType === 'extra_shift' ? { projectName } : {}),
