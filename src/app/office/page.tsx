@@ -100,27 +100,10 @@ export default function OfficeDashboard() {
     // Fetch initial employees and managers data
     const fetchInitialData = async () => {
       try {
-        const [employeesSnapshot, managersSnapshot] = await Promise.all([
-          getDocs(query(
-            collection(db, 'users'),
-            where('roles', 'array-contains', 'employee')
-          )),
-          getDocs(query(
-            collection(db, 'users'),
-            where('roles', 'array-contains', 'manager')
-          ))
-        ]);
-
-        const employeesMap = new Map(
-          employeesSnapshot.docs.map(doc => [doc.id, { ...doc.data(), id: doc.id } as User])
-        );
-        setEmployees(employeesMap);
-
-        const managersMap = new Map(
-          managersSnapshot.docs.map(doc => [doc.id, { ...doc.data(), id: doc.id } as User])
-        );
-        setManagers(managersMap);
-
+        const employeesSnapshot = await getDocs(query(
+          collection(db, 'users'),
+          where('roles', 'array-contains', 'employee')
+        ));
         setStats(prev => ({
           ...prev,
           totalEmployees: employeesSnapshot.docs.length
@@ -242,40 +225,32 @@ export default function OfficeDashboard() {
         </h2>
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           {recentActivity.length > 0 ? (
-            <ul className="divide-y divide-gray-200">
-              {recentActivity.map((activity) => (
-                <li key={activity.id} className="px-4 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-emerald-600">
-                        {t(activity.type === 'extra_shift' ? 'extra.shift' : 'vacation')} {t('request')}
-                        {activity.employeeId && employees.get(activity.employeeId) && 
-                          ` ${t('by')} ${employees.get(activity.employeeId)?.name}`
-                        }
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {t('status')}: {
-                          activity.managerId && managers.get(activity.managerId)
-                            ? `${t(activity.status)} ${t('by')} ${managers.get(activity.managerId)?.name}`
-                            : t(activity.status)
-                        }
-                      </p>
-                      {activity.type === 'extra_shift' && activity.startDate && (
+            <div className="p-6">
+              <ul role="list" className="divide-y divide-gray-200">
+                {recentActivity.map((request) => (
+                  <li key={request.id} className="py-4">
+                    <div className="flex space-x-3">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium">
+                            {request.type === 'vacation' ? 'Vacation Request' : 'Extra Shift Request'} by {request.employeeName || 'Unknown'}
+                          </h3>
+                          <p className="text-sm text-gray-500">{t('request.date')}: {request.createdAt.toDate().toLocaleDateString()}</p>
+                        </div>
                         <p className="text-sm text-gray-500">
-                          {t('shift.date')}: {activity.startDate.toDate().toLocaleDateString()}
+                          {t('status.label')}: {t(`status.${request.status}`)} {request.status === 'approved' && `by ${request.approvedBy || 'N/A'}`}
                         </p>
-                      )}
+                        <p className="text-sm text-gray-500">
+                          {request.type === 'extra_shift'
+                            ? `${t('shift.date')}: ${request.startDate.toDate().toLocaleDateString()}`
+                            : `${t('dates')}: ${request.startDate.toDate().toLocaleDateString()} - ${request.endDate?.toDate().toLocaleDateString()}`}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      <p>{t('request.date')}: {activity.createdAt.toDate().toLocaleDateString()}</p>
-                      {activity.status !== 'pending' && activity.updatedAt && (
-                        <p>{t(activity.status)}: {activity.updatedAt.toDate().toLocaleDateString()}</p>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <div className="px-4 py-8 text-center text-gray-500">
               {t('no.results')} {months[selectedMonth]}

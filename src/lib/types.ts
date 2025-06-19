@@ -17,6 +17,7 @@ export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export interface Request {
   id: string;
   employeeId: string;
+  employeeName?: string;
   managerId: string;
   type: 'vacation' | 'extra_shift';
   status: RequestStatus;
@@ -25,7 +26,7 @@ export interface Request {
   createdAt: any;
   updatedAt?: any;
   projectName?: string;
-  approvedBy?: string;
+  approvedBy?: string | null;
 }
 
 export interface Notification {

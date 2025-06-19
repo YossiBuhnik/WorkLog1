@@ -50,7 +50,8 @@ export default function ManagerDashboard() {
     setProcessingId(requestId);
 
     try {
-      await updateRequestStatus(requestId, status, user.displayName || user.email || 'Manager');
+      const approverName = user.displayName || user.email || 'Manager';
+      await updateRequestStatus(requestId, status, approverName);
       
       const request = requests.find(r => r.id === requestId);
       if (request) {
