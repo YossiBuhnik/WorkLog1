@@ -50,8 +50,6 @@ export default function ManagerDashboard() {
     setProcessingId(requestId);
 
     try {
-      const approverName = user.displayName || user.email || 'Manager';
-      console.log(`[Manager Dashboard Debug] Approving request ${requestId} by manager: ${approverName} (ID: ${user.id})`);
       await updateRequestStatus(requestId, status, user.id);
       
       const request = requests.find(r => r.id === requestId);

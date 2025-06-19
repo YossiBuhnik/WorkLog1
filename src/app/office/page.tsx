@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { collection, query, getDocs, where, orderBy, limit, and, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, limit, and, onSnapshot, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Request, User } from '@/lib/types';
 import toast from 'react-hot-toast';
@@ -73,31 +73,27 @@ export default function OfficeDashboard() {
         ...doc.data(),
         id: doc.id,
       } as Request));
-      console.log('[Office Dashboard Debug] 1. Raw Requests:', activity);
 
       const userIds = new Set<string>();
       activity.forEach(req => {
         userIds.add(req.employeeId);
         if (req.approvedBy) userIds.add(req.approvedBy);
       });
-      console.log('[Office Dashboard Debug] 2. User IDs to Fetch:', Array.from(userIds));
 
       const usersMap = new Map<string, User>();
       if (userIds.size > 0) {
-        const usersQuery = query(collection(db, 'users'), where('id', 'in', Array.from(userIds)));
+        const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', Array.from(userIds)));
         const usersSnapshot = await getDocs(usersQuery);
         usersSnapshot.forEach(doc => {
           usersMap.set(doc.id, { ...doc.data(), id: doc.id } as User);
         });
       }
-      console.log('[Office Dashboard Debug] 3. Fetched Users Map:', usersMap);
       
       const enhancedActivity = activity.map(req => ({
         ...req,
         employeeName: usersMap.get(req.employeeId)?.displayName || null,
         approvedByName: usersMap.get(req.approvedBy || '')?.displayName || null,
       }));
-      console.log('[Office Dashboard Debug] 4. Enhanced Activity:', enhancedActivity);
 
       setRecentActivity(enhancedActivity);
       
