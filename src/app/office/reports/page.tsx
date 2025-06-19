@@ -202,14 +202,24 @@ export default function Reports() {
       }));
 
       // Calculate employee stats
-      const employeeStats: EmployeeStats[] = users
+      const employeeStats: EmployeeStats[] = await Promise.all(users
         .filter(u => u.roles.includes('employee'))
-        .map(employee => {
-          // For vacation day count, use all vacation requests for this employee
+        .map(async (employee) => {
+          // Get all requests for the employee, not yet filtered by date
           const employeeRequests = requests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
-          const extraShiftRequests = employeeRequests.filter(r => r.type === 'extra_shift');
-          const vacationRequests = employeeRequests.filter(r => r.type === 'vacation');
+
+          // Apply the monthly date filter for stats like extra shifts
+          const monthlyFilteredRequests = employeeRequests.filter(request => {
+            if (selectedView === 'year' || !dateFilter) return true;
+            const start = request.startDate?.toDate?.();
+            const end = request.endDate?.toDate?.() || start;
+            if (!start) return false;
+            return start <= dateFilter.end && end >= dateFilter.start;
+          });
           
+          const monthlyExtraShiftRequests = monthlyFilteredRequests.filter(r => r.type === 'extra_shift');
+          const vacationRequests = employeeRequests.filter(r => r.type === 'vacation');
+
           const calculateDays = (requestsToCalc: Request[]) => {
             return requestsToCalc.reduce((total, request) => {
               if (request.endDate && request.startDate) {
@@ -240,11 +250,11 @@ export default function Reports() {
           
           return {
             name: employee.displayName || employee.email || 'Unknown',
-            totalRequests: employeeRequests.length,
+            totalRequests: monthlyFilteredRequests.length,
             extraShifts: {
-              total: extraShiftRequests.length,
-              approved: extraShiftRequests.filter(r => r.status === 'approved').length,
-              rejected: extraShiftRequests.filter(r => r.status === 'rejected').length,
+              total: monthlyExtraShiftRequests.length,
+              approved: monthlyExtraShiftRequests.filter(r => r.status === 'approved').length,
+              rejected: monthlyExtraShiftRequests.filter(r => r.status === 'rejected').length,
             },
             vacations: {
               total: totalVacationDays,
@@ -256,7 +266,7 @@ export default function Reports() {
             debug: vacationRequests.length > 0 ? vacationRequests.map(r => `${r.startDate?.toDate?.().toLocaleDateString?.()} - ${r.endDate?.toDate?.().toLocaleDateString?.()} (${r.status})`).join(', ') : undefined
           };
         })
-        .sort((a, b) => b.totalRequests - a.totalRequests);
+      );
 
       // Final stats object
       const newStats: RequestStats = {
