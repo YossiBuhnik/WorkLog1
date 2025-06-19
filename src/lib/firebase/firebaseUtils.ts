@@ -164,12 +164,24 @@ export const createRequest = async (requestData: Omit<Request, 'id' | 'status' |
   }
 };
 
-export const updateRequestStatus = async (requestId: string, status: RequestStatus) => {
+/**
+ * Updates the status of a request.
+ * @param {string} requestId - The ID of the request to update.
+ * @param {RequestStatus} status - The new status ('approved' or 'rejected').
+ * @param {string} [approvedBy] - The name of the user who approved the request.
+ */
+export const updateRequestStatus = async (requestId: string, status: RequestStatus, approvedBy?: string) => {
   const requestRef = doc(db, 'requests', requestId);
-  await updateDoc(requestRef, {
+  const dataToUpdate: any = {
     status,
     updatedAt: Timestamp.now(),
-  });
+  };
+
+  if (status === 'approved' && approvedBy) {
+    dataToUpdate.approvedBy = approvedBy;
+  }
+  
+  await updateDoc(requestRef, dataToUpdate);
 };
 
 export const getRequestsByEmployee = async (employeeId: string) => {

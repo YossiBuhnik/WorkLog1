@@ -46,11 +46,11 @@ export default function ManagerDashboard() {
   }, [user, t]);
 
   const handleUpdateStatus = async (requestId: string, status: 'approved' | 'rejected') => {
-    if (processingId) return;
+    if (processingId || !user) return;
     setProcessingId(requestId);
 
     try {
-      await updateRequestStatus(requestId, status);
+      await updateRequestStatus(requestId, status, user.displayName || user.email || 'Manager');
       
       const request = requests.find(r => r.id === requestId);
       if (request) {
