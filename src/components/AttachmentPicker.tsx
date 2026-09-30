@@ -76,12 +76,12 @@ export default function AttachmentPicker({ files, onChange, disabled }: Attachme
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || processing || files.length >= MAX_FILES_PER_REQUEST}
-        className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-brand-blue/40 rounded-2xl text-base font-medium text-brand-navy bg-brand-blue-light/50 hover:bg-brand-blue-light hover:border-brand-blue transition-colors disabled:opacity-50"
       >
-        {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+        {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-5 w-5" />}
         {processing ? t('attachments.processing') : t('attachments.add')}
       </button>
-      <p className="mt-1 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-slate-500 text-center">
         {t('attachments.hint').replace('{max}', String(MAX_FILES_PER_REQUEST))}
       </p>
 
@@ -90,7 +90,7 @@ export default function AttachmentPicker({ files, onChange, disabled }: Attachme
           {files.map((file, index) => (
             <li
               key={`${file.name}-${index}`}
-              className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 rounded-md text-sm"
+              className="flex items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 ring-1 ring-slate-200 rounded-xl text-sm"
             >
               <span className="truncate" dir="auto">{file.name}</span>
               <span className="flex items-center gap-2 shrink-0">

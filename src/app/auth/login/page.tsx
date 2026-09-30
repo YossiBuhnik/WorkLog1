@@ -1,205 +1,155 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/hooks/useAuth';
-import toast from 'react-hot-toast';
+import Image from 'next/image';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
+import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
 
+const LANGUAGES = [
+  { code: 'he', label: 'עברית' },
+  { code: 'en', label: 'English' },
+  { code: 'ar', label: 'العربية' },
+] as const;
+
+// Phone sign-in was never finished (no code-entry step), so only email sign-in is offered.
 export default function LoginPage() {
   const router = useRouter();
-  const { signInWithEmail, signInWithPhone, user, loading } = useAuth();
-  const [isPhoneLogin, setIsPhoneLogin] = useState(false);
+  const { signInWithEmail } = useAuth();
+  const { t } = useTranslation();
+  const { language, setLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-
-  useEffect(() => {
-    // Debug logging
-    const info = {
-      firebaseConfig: {
-        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? 'set' : 'missing',
-        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ? 'set' : 'missing',
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? 'set' : 'missing',
-        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ? 'set' : 'missing',
-        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ? 'set' : 'missing',
-        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ? 'set' : 'missing',
-      },
-      authState: {
-        loading,
-        userExists: !!user,
-        userEmail: user?.email,
-      }
-    };
-    console.log('Login Page Debug Info:', info);
-    setDebugInfo(info);
-  }, [user, loading]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
     try {
-      console.log('Attempting email login...');
-      await signInWithEmail(email, password);
-      console.log('Login successful');
-      toast.success('Login successful! Redirecting to employee dashboard...');
-      router.push('/employee');
+      await signInWithEmail(email.trim(), password);
+      // The home page sends each user to the area of their role
+      router.push('/');
     } catch (err: any) {
       console.error('Login error:', err);
-      let errorMessage = 'Login failed. Please check your credentials.';
-      if (err.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid email or password.';
-      } else if (err.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email.';
-      }
-      toast.error(errorMessage);
+      const wrong = ['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/invalid-email'];
+      toast.error(t(wrong.includes(err?.code) ? 'login.error' : 'login.error.generic'));
     } finally {
       setIsLoading(false);
     }
   };
-
-  const handlePhoneLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    try {
-      console.log('Attempting phone login...');
-      await signInWithPhone(phoneNumber);
-      console.log('Verification code sent successfully');
-      toast.success('Verification code sent!');
-    } catch (err) {
-      console.error('Phone login error:', err);
-      toast.error('Failed to send verification code.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Show debug information in development (only when NEXT_PUBLIC_SHOW_LOGIN_DEBUG=true)
-  if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_SHOW_LOGIN_DEBUG === 'true' && debugInfo) {
-    return (
-      <div className="min-h-screen p-4">
-        <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold mb-4">Debug Information</h2>
-          <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-96">
-            {JSON.stringify(debugInfo, null, 2)}
-          </pre>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Don&apos;t have an account?{' '}
-            <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
-              Register here
-            </Link>
-          </p>
-          <div className="mt-2 text-center">
-            <button
-              onClick={() => setIsPhoneLogin(!isPhoneLogin)}
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              {isPhoneLogin ? "Use email instead" : "Use phone number instead"}
-            </button>
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Brand panel (large screens) */}
+      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-navy via-[#2C5C8F] to-brand-blue p-12 text-white">
+        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.10]" viewBox="0 0 600 700" preserveAspectRatio="xMidYMid slice" fill="none" aria-hidden>
+          <path d="M420 -20 L120 720" stroke="white" strokeWidth="90" />
+          <path d="M540 -20 L300 720" stroke="white" strokeWidth="60" />
+          <ellipse cx="300" cy="360" rx="330" ry="110" transform="rotate(-12 300 360)" stroke="white" strokeWidth="18" />
+        </svg>
+        <div className="relative">
+          <div className="inline-flex rounded-2xl bg-white p-3 shadow-lg">
+            <Image src="/images/tsk-logo-crop.png" alt="TSK הנדסה אזרחית" width={1510} height={1160} className="h-16 w-auto" priority />
           </div>
         </div>
+        <div className="relative max-w-md">
+          <h2 className="text-4xl font-bold leading-tight">{t('login.app.name')}</h2>
+          <p className="mt-3 text-lg text-white/80">{t('login.subtitle')}</p>
+        </div>
+        <p className="relative text-sm text-white/60">TSK · הנדסה אזרחית</p>
+      </div>
 
-        {isPhoneLogin ? (
-          <form className="mt-8 space-y-6" onSubmit={handlePhoneLogin}>
-            <div className="rounded-md shadow-sm -space-y-px">
-              <div>
-                <label htmlFor="phone-number" className="sr-only">
-                  Phone Number
-                </label>
-                <input
-                  id="phone-number"
-                  name="phone"
-                  type="tel"
-                  required
-                  className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                  placeholder="Phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                />
-              </div>
-            </div>
+      {/* Sign-in form */}
+      <div className="relative flex flex-col items-center justify-center px-5 py-10 bg-[var(--background)]">
+        <div className="absolute top-4 end-4 flex rounded-xl bg-white p-1 text-xs shadow-soft ring-1 ring-slate-100">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLanguage(l.code)}
+              className={`rounded-lg px-2.5 py-1 font-medium ${language === l.code ? 'bg-brand-blue-light text-brand-navy' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
 
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden flex justify-center mb-8">
+            <Image src="/images/tsk-logo-crop.png" alt="TSK הנדסה אזרחית" width={1510} height={1160} className="h-24 w-auto" priority />
+          </div>
+
+          <h1 className="text-3xl font-bold text-slate-900">{t('login.welcome')}</h1>
+          <p className="mt-1.5 text-slate-500">{t('login.subtitle')}</p>
+
+          <form className="mt-8 space-y-4" onSubmit={handleEmailLogin}>
             <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {isLoading ? "Sending code..." : "Send verification code"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form className="mt-8 space-y-6" onSubmit={handleEmailLogin}>
-            <div className="rounded-md shadow-sm -space-y-px">
-              <div>
-                <label htmlFor="email-address" className="sr-only">
-                  Email address
-                </label>
+              <label htmlFor="email-address" className="field-label">{t('login.email')}</label>
+              <div className="relative" dir="ltr">
+                <Mail className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-4 h-5 w-5 text-slate-400" />
                 <input
                   id="email-address"
                   name="email"
                   type="email"
                   autoComplete="email"
+                  inputMode="email"
+                  dir="ltr"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                  placeholder="Email address"
+                  className="field-input ps-12 text-start"
+                  placeholder="name@company.co.il"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
-              <div>
-                <label htmlFor="password" className="sr-only">
-                  Password
-                </label>
+            </div>
+            <div>
+              <label htmlFor="password" className="field-label">{t('login.password')}</label>
+              <div className="relative" dir="ltr">
+                <Lock className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-4 h-5 w-5 text-slate-400" />
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
+                  dir="ltr"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                  placeholder="Password"
+                  className="field-input ps-12 pe-12 text-start"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute top-1/2 -translate-y-1/2 end-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-700"
+                  aria-label={t('login.password')}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {isLoading ? "Signing in..." : "Sign in"}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-navy px-6 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-navy/20 hover:bg-brand-navy-dark active:scale-[0.99] transition disabled:opacity-60"
+            >
+              {isLoading && <Loader2 className="h-5 w-5 animate-spin" />}
+              {isLoading ? t('login.signing.in') : t('login.submit')}
+            </button>
           </form>
-        )}
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            {t('login.no.account')}{' '}
+            <Link href="/auth/register" className="font-medium text-brand-blue hover:text-brand-navy">
+              {t('login.register')}
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
-} 
+}

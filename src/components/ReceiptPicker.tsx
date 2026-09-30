@@ -83,7 +83,7 @@ export default function ReceiptPicker({ receipts, onChange, maxReceipts, disable
           {receipts.map((receipt, index) => {
             const invalid = receipt.amount !== '' && parseReceiptAmount(receipt.amount) === null;
             return (
-              <li key={`${receipt.file.name}-${index}`} className="flex flex-wrap items-center gap-2 px-3 py-2 bg-gray-50 rounded-md text-sm">
+              <li key={`${receipt.file.name}-${index}`} className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-slate-50 ring-1 ring-slate-200 rounded-xl text-sm">
                 <span className="flex-1 min-w-0 truncate" dir="auto">{receipt.file.name}</span>
                 <span className="text-gray-500 shrink-0">{formatFileSize(receipt.file.size)}</span>
                 <label className="flex items-center gap-1 shrink-0">
@@ -96,7 +96,7 @@ export default function ReceiptPicker({ receipts, onChange, maxReceipts, disable
                     disabled={disabled}
                     placeholder={t('petty.cash.amount')}
                     aria-label={t('petty.cash.amount')}
-                    className={`w-28 rounded-md text-sm py-1 ${invalid ? 'border-red-500' : 'border-gray-300'}`}
+                    className={`w-28 rounded-lg border bg-white px-2 text-sm py-1.5 ${invalid ? 'border-red-500' : 'border-slate-300'}`}
                   />
                 </label>
                 <button
@@ -118,17 +118,17 @@ export default function ReceiptPicker({ receipts, onChange, maxReceipts, disable
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || processing || receipts.length >= maxReceipts}
-        className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-brand-blue/40 rounded-2xl text-base font-medium text-brand-navy bg-brand-blue-light/50 hover:bg-brand-blue-light hover:border-brand-blue transition-colors disabled:opacity-50"
       >
-        {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+        {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-5 w-5" />}
         {processing ? t('attachments.processing') : t('petty.cash.add.receipt')}
       </button>
-      <p className="mt-1 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-slate-500 text-center">
         {t('petty.cash.receipts.hint').replace('{max}', String(maxReceipts))}
       </p>
 
       {receipts.length > 0 && (
-        <p className="mt-3 text-sm font-semibold text-gray-900">
+        <p className="mt-3 text-base font-semibold text-slate-900">
           {t('petty.cash.total')}: {formatAmount(total)}
         </p>
       )}

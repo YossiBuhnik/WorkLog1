@@ -13,20 +13,43 @@ import { Timestamp } from 'firebase/firestore';
 import AttachmentPicker from '@/components/AttachmentPicker';
 import ReceiptPicker, { ReceiptDraft, parseReceiptAmount } from '@/components/ReceiptPicker';
 import { MAX_RECEIPTS_PER_REQUEST } from '@/lib/firebase/attachments';
-import { createReport, isReportType, parseDateInput } from '@/lib/firebase/reports';
+import { createReport, isReportType, parseDateInput, requestTypeKey } from '@/lib/firebase/reports';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
+import { countWorkdays } from '@/lib/workdays';
+import { TYPE_META, TYPE_ORDER } from '@/lib/requestTypeMeta';
+import { ArrowLeft, ArrowRight, CalendarDays, Loader2, Send } from 'lucide-react';
 
 type RequestType = 'vacation' | 'extra_shift' | 'sick' | 'reserve' | 'petty_cash';
-const TYPES_FROM_URL: RequestType[] = ['vacation', 'sick', 'reserve', 'petty_cash'];
+const TYPES_FROM_URL: RequestType[] = ['extra_shift', 'vacation', 'sick', 'reserve', 'petty_cash'];
 
 function NewRequestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, hasRole } = useAuth();
   const { t } = useTranslation();
-  const [requestType, setRequestType] = useState<RequestType>(() => {
-    const type = searchParams.get('type') as RequestType | null;
-    return type && TYPES_FROM_URL.includes(type) ? type : 'extra_shift';
-  });
+  const { dir } = useLanguage();
+  const typeFromUrl = searchParams.get('type') as RequestType | null;
+  const validTypeFromUrl = !!typeFromUrl && TYPES_FROM_URL.includes(typeFromUrl);
+  const [requestType, setRequestType] = useState<RequestType>(validTypeFromUrl ? typeFromUrl! : 'extra_shift');
+  // Without a type in the link, the employee first picks one from big cards
+  const [step, setStep] = useState<'type' | 'details'>(validTypeFromUrl ? 'details' : 'type');
+  const [cameFromTypeStep, setCameFromTypeStep] = useState(!validTypeFromUrl);
+  // The "+" button links here without a type: go back to the first step
+  useEffect(() => {
+    if (validTypeFromUrl) {
+      setRequestType(typeFromUrl!);
+      setStep('details');
+    } else {
+      setStep('type');
+    }
+    setCameFromTypeStep(!validTypeFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFromUrl]);
+  const chooseType = (type: RequestType) => {
+    setRequestType(type);
+    setCameFromTypeStep(true);
+    setStep('details');
+  };
   const [files, setFiles] = useState<File[]>([]);
   const isReport = isReportType(requestType);
   const isPettyCash = requestType === 'petty_cash';
@@ -223,183 +246,210 @@ function NewRequestContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="space-y-4 animate-pulse">
+        <div className="h-10 w-48 rounded-xl bg-slate-200/70" />
+        <div className="h-72 rounded-3xl bg-slate-200/70" />
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-lg mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t('new.request')}</h1>
-          <p className="text-gray-500">{t('submit.new.request')}</p>
+  const Back = dir === 'rtl' ? ArrowRight : ArrowLeft;
+  const Forward = dir === 'rtl' ? ArrowLeft : ArrowRight;
+  const meta = TYPE_META[requestType];
+  const TypeIcon = meta.icon;
+  const hasRange = requestType === 'vacation' || isSickOrReserve;
+  const workdays = hasRange && startDate && endDate && endDate >= startDate
+    ? countWorkdays(parseDateInput(startDate), parseDateInput(endDate))
+    : null;
+
+  // Step 1: choose what to submit
+  if (step === 'type') {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => router.push('/employee')}
+          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
+        >
+          <Back className="h-4 w-4" />
+          {t('wizard.back')}
+        </button>
+        <h1 className="text-2xl font-bold text-slate-900 mb-5">{t('wizard.choose.type')}</h1>
+        <div className="space-y-3">
+          {TYPE_ORDER.map((type) => {
+            const m = TYPE_META[type];
+            const Icon = m.icon;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => chooseType(type)}
+                className="w-full flex items-center gap-4 rounded-2xl bg-white p-4 text-start shadow-soft ring-1 ring-slate-100 hover:ring-brand-blue/50 active:scale-[0.99] transition"
+              >
+                <span className={`h-14 w-14 shrink-0 rounded-2xl flex items-center justify-center ${m.badge}`}>
+                  <Icon className="h-7 w-7" />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-lg font-semibold text-slate-900">{t(requestTypeKey(type))}</span>
+                  <span className="block text-sm text-slate-500">{t(`tile.${type}.hint`)}</span>
+                </span>
+                <Forward className="h-5 w-5 text-slate-300" />
+              </button>
+            );
+          })}
         </div>
+      </div>
+    );
+  }
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
+  // Step 2: the details of the chosen type
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => (cameFromTypeStep ? setStep('type') : router.push('/employee'))}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
+      >
+        <Back className="h-4 w-4" />
+        {t('wizard.back')}
+      </button>
+
+      <div className="flex items-center gap-4 mb-5">
+        <span className={`h-14 w-14 shrink-0 rounded-2xl flex items-center justify-center ${meta.badge}`}>
+          <TypeIcon className="h-7 w-7" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-slate-900">{t(meta.newKey)}</h1>
+          <p className="text-sm text-slate-500">{t(isReport ? 'report.no.approval.needed' : `tile.${requestType}.hint`)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setStep('type')}
+          className="shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium text-brand-blue hover:bg-brand-blue-light"
+        >
+          {t('wizard.change.type')}
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5 rounded-3xl bg-white p-5 sm:p-7 shadow-soft ring-1 ring-slate-100">
+        {requestType === 'extra_shift' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              {t('request.type')}
-            </label>
-            <select
-              value={requestType}
-              onChange={(e) => setRequestType(e.target.value as RequestType)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            >
-              <option value="extra_shift">{t('extra.shift')}</option>
-              <option value="vacation">{t('vacation')}</option>
-              <option value="sick">{t('sick.leave')}</option>
-              <option value="reserve">{t('reserve.duty')}</option>
-              <option value="petty_cash">{t('petty.cash')}</option>
-            </select>
-            {isReport && (
-              <p className="mt-2 text-sm text-gray-500">{t('report.no.approval.needed')}</p>
-            )}
+            <label className="field-label">{t('project.name')}</label>
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              required
+              className="field-input"
+              placeholder={t('enter.project.name')}
+            />
           </div>
+        )}
 
-          {requestType === 'extra_shift' && (
+        {isPettyCash && (
+          <>
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t('project.name')}
+              <label className="field-label">{t('petty.cash.description')}</label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+                maxLength={200}
+                className="field-input"
+                placeholder={t('petty.cash.description.placeholder')}
+              />
+            </div>
+            <div>
+              <label className="field-label">
+                {t('project.name')} <span className="font-normal text-slate-400">({t('optional')})</span>
               </label>
               <input
                 type="text"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
-                required
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="field-input"
                 placeholder={t('enter.project.name')}
               />
             </div>
-          )}
+          </>
+        )}
 
-          {isPettyCash && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  {t('petty.cash.description')}
-                </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                  maxLength={200}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder={t('petty.cash.description.placeholder')}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  {t('project.name')} ({t('optional')})
-                </label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder={t('enter.project.name')}
-                />
-              </div>
-            </>
-          )}
-
+        <div className={hasRange ? 'grid grid-cols-2 gap-3' : ''}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              {t(isPettyCash ? 'petty.cash.expense.date' : 'start.date')}
+            <label className="field-label">
+              {t(isPettyCash ? 'petty.cash.expense.date' : hasRange ? 'wizard.from' : 'wizard.shift.date')}
             </label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="field-input px-3"
             />
           </div>
-
-          {requestType === 'vacation' && (
+          {hasRange && (
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t('end.date')}
-              </label>
+              <label className="field-label">{t('wizard.until')}</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
-                min={startDate || new Date().toISOString().split('T')[0]}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                min={startDate || (requestType === 'vacation' ? new Date().toISOString().split('T')[0] : undefined)}
+                className="field-input px-3"
               />
             </div>
           )}
+        </div>
 
-          {isPettyCash && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('petty.cash.receipts')}
-              </label>
-              <ReceiptPicker
-                receipts={receipts}
-                onChange={setReceipts}
-                maxReceipts={MAX_RECEIPTS_PER_REQUEST}
-                disabled={submitting}
-              />
-            </div>
-          )}
+        {workdays !== null && (
+          <p className="-mt-2 inline-flex items-center gap-2 rounded-full bg-brand-blue-light px-3 py-1 text-sm font-medium text-brand-navy">
+            <CalendarDays className="h-4 w-4" />
+            {workdays === 0 ? t('wizard.no.workdays') : workdays === 1 ? t('wizard.one.day') : t('wizard.n.days').replace('{n}', String(workdays))}
+          </p>
+        )}
 
-          {isSickOrReserve && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  {t('end.date')}
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  min={startDate || undefined}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t(requestType === 'sick' ? 'report.document.sick' : 'report.document.reserve')}
-                </label>
-                <AttachmentPicker files={files} onChange={setFiles} disabled={submitting} />
-                {files.length === 0 && (
-                  <p className="mt-2 text-sm text-amber-700">{t('report.document.later')}</p>
-                )}
-              </div>
-            </>
-          )}
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => router.push('/employee')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
+        {isPettyCash && (
+          <div>
+            <label className="field-label">{t('petty.cash.receipts')}</label>
+            <ReceiptPicker
+              receipts={receipts}
+              onChange={setReceipts}
+              maxReceipts={MAX_RECEIPTS_PER_REQUEST}
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {submitting ? t('submitting') : t('submit.request')}
-            </button>
+            />
           </div>
-        </form>
-      </div>
+        )}
+
+        {isSickOrReserve && (
+          <div>
+            <label className="field-label">
+              {t(requestType === 'sick' ? 'report.document.sick' : 'report.document.reserve')}
+            </label>
+            <AttachmentPicker files={files} onChange={setFiles} disabled={submitting} />
+            {files.length === 0 && (
+              <p className="mt-2 text-sm text-amber-700 text-center">{t('report.document.later')}</p>
+            )}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-navy px-6 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-navy/20 hover:bg-brand-navy-dark active:scale-[0.99] transition disabled:opacity-60"
+        >
+          {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rtl:-scale-x-100" />}
+          {submitting ? t('submitting') : t(isReport ? 'wizard.send.to.office' : 'wizard.send.to.manager')}
+        </button>
+      </form>
     </div>
   );
 }
 
 export default function NewRequest() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={null}>
       <NewRequestContent />
     </Suspense>
   );

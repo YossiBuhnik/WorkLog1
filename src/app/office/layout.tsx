@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
-import Link from 'next/link';
+import SubNav from '../components/SubNav';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -26,68 +26,29 @@ export default function OfficeLayout({
   const pathname = usePathname();
   const { t } = useTranslation();
 
-  const isActive = (path: string) => {
-    return pathname === path
-      ? 'nav-link-active'
-      : 'nav-link';
-  };
 
   if (!allowed) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-blue"></div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <nav className="bg-[var(--primary)] shadow-md">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-white">
-                {user?.name || t('office')} {t('dashboard')}
-              </h1>
-            </div>
+      <SubNav
+        title={t('office.dashboard')}
+        tabs={[
+          { href: '/office', label: t('overview') },
+          { href: '/office/employees', label: t('employees') },
+          { href: '/office/reports', label: t('reports') },
+          { href: '/office/documents', label: t('office.documents.nav') },
+          { href: '/office/settings', label: t('settings') },
+        ]}
+      />
 
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/office"
-                className={isActive('/office')}
-              >
-                {t('overview')}
-              </Link>
-              <Link
-                href="/office/employees"
-                className={isActive('/office/employees')}
-              >
-                {t('employees')}
-              </Link>
-              <Link
-                href="/office/reports"
-                className={isActive('/office/reports')}
-              >
-                {t('reports')}
-              </Link>
-              <Link
-                href="/office/documents"
-                className={isActive('/office/documents')}
-              >
-                {t('office.documents.nav')}
-              </Link>
-              <Link
-                href="/office/settings"
-                className={isActive('/office/settings')}
-              >
-                {t('settings')}
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="flex-1 bg-[var(--background)] p-6">
+      <main className="flex-1 bg-[var(--background)] px-4 py-6">
         <div className="max-w-7xl mx-auto">
           {children}
         </div>

@@ -8,10 +8,16 @@ import { useTranslation } from '@/lib/hooks/useTranslation';
 import { getRequestsByManager, updateRequestStatus, createNotification, getDocuments } from '@/lib/firebase/firebaseUtils';
 import { Request, User } from '@/lib/types';
 import toast from 'react-hot-toast';
+import { Check, CheckCircle2, Loader2, X } from 'lucide-react';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
+import { TYPE_META } from '@/lib/requestTypeMeta';
+import { countWorkdays } from '@/lib/workdays';
+import { initialsOf } from '@/lib/initials';
 
 export default function ManagerDashboard() {
   const { user, loading } = useAuth();
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [requests, setRequests] = useState<Request[]>([]);
   const [employees, setEmployees] = useState<Map<string, User>>(new Map());
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -79,73 +85,85 @@ export default function ManagerDashboard() {
 
   if (loading || loadingRequests) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="max-w-3xl mx-auto space-y-3 animate-pulse">
+        {[0, 1, 2].map((i) => <div key={i} className="h-44 rounded-3xl bg-slate-200/70" />)}
       </div>
     );
   }
 
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar' : 'en-GB';
+  const fmt = (d: Date) => d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('pending.requests')}</h1>
-        <p className="text-gray-500">{t('review.manage.requests')}</p>
-      </div>
+    <div className="max-w-3xl mx-auto">
+      <p className="text-slate-500 mb-4">{t('review.manage.requests')}</p>
 
       {requests.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">{t('no.pending.requests')}</p>
+        <div className="rounded-3xl bg-white p-10 text-center shadow-soft ring-1 ring-slate-100">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+            <CheckCircle2 className="h-7 w-7" />
+          </div>
+          <p className="font-semibold text-slate-900">{t('no.pending.requests')}</p>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-3">
           {requests.map((request) => {
             const employee = employees.get(request.employeeId);
+            const name = employee?.displayName || (employee as any)?.name || employee?.email || t('unknown.employee');
+            const meta = TYPE_META[request.type] || TYPE_META.extra_shift;
+            const Icon = meta.icon;
+            const start = request.startDate.toDate();
+            const end = request.endDate?.toDate();
+            const days = end ? countWorkdays(start, end) : null;
+            const busy = processingId === request.id;
             return (
-              <div
-                key={request.id}
-                className="bg-white rounded-lg shadow overflow-hidden p-4"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      {t(requestTypeKey(request.type))}
-                    </span>
-                    <p className="mt-1 text-sm font-medium text-gray-900">
-                      {employee?.displayName || employee?.email || t('unknown.employee')}
+              <div key={request.id} className="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-slate-100">
+                <div className="flex items-start gap-3">
+                  <span className="h-11 w-11 shrink-0 rounded-full bg-gradient-to-br from-brand-blue to-brand-navy text-white text-sm font-semibold flex items-center justify-center">
+                    {initialsOf(name)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-900">{name}</p>
+                    <p className="text-xs text-slate-400">
+                      {t('requested.on')} {request.createdAt.toDate().toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
                     </p>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {request.createdAt.toDate().toLocaleDateString()}
+                  <span className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${meta.badge}`}>
+                    <Icon className="h-4 w-4" />
+                    {t(requestTypeKey(request.type))}
                   </span>
                 </div>
 
-                {request.projectName && (
-                  <p className="text-sm text-gray-600 mb-2">
-                    {t('project')}: {request.projectName}
+                <div className="mt-4 rounded-2xl bg-slate-50 p-3.5 text-sm space-y-1">
+                  <p className="font-medium text-slate-900">
+                    {end && end.toDateString() !== start.toDateString() ? `${fmt(start)} – ${fmt(end)}` : fmt(start)}
+                    {days !== null && days > 0 && (
+                      <span className="text-slate-500 font-normal">
+                        {' · '}{days === 1 ? t('wizard.one.day') : t('wizard.n.days').replace('{n}', String(days))}
+                      </span>
+                    )}
                   </p>
-                )}
-
-                <div className="text-sm text-gray-600">
-                  <p>{t('start.date')}: {request.startDate.toDate().toLocaleDateString()}</p>
-                  {request.endDate && (
-                    <p>{t('end.date')}: {request.endDate.toDate().toLocaleDateString()}</p>
+                  {request.projectName && (
+                    <p className="text-slate-600" dir="auto">{t('project')}: {request.projectName}</p>
                   )}
                 </div>
 
-                <div className="mt-4 space-y-2">
-                  <button
-                    onClick={() => handleUpdateStatus(request.id, 'approved')}
-                    disabled={!!processingId}
-                    className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {processingId === request.id ? t('processing') : t('approve')}
-                  </button>
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleUpdateStatus(request.id, 'rejected')}
                     disabled={!!processingId}
-                    className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                    className="flex items-center justify-center gap-1.5 rounded-2xl bg-white py-3 font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50 transition"
                   >
-                    {processingId === request.id ? t('processing') : t('reject')}
+                    <X className="h-5 w-5" />
+                    {t('reject')}
+                  </button>
+                  <button
+                    onClick={() => handleUpdateStatus(request.id, 'approved')}
+                    disabled={!!processingId}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 py-3 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition"
+                  >
+                    {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                    {t('approve')}
                   </button>
                 </div>
               </div>
@@ -155,4 +173,4 @@ export default function ManagerDashboard() {
       )}
     </div>
   );
-} 
+}

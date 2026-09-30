@@ -1,38 +1,53 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { canSubmitRequests } from '@/lib/roles';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
 import { getRequestsByEmployee, cancelRequest } from '@/lib/firebase/firebaseUtils';
 import { Request } from '@/lib/types';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { AlertTriangle, ChevronLeft, ChevronRight, Paperclip, Upload } from 'lucide-react';
 import { requestTypeKey, isReportType, isMissingDocument } from '@/lib/firebase/reports';
 import { formatAmount } from '@/lib/firebase/attachments';
+import { countWorkdays } from '@/lib/workdays';
+import { TYPE_META, TYPE_ORDER, STATUS_META } from '@/lib/requestTypeMeta';
+
+type Filter = 'all' | 'open' | 'done';
+
+const localeOf = (language: string) => (language === 'he' ? 'he-IL' : language === 'ar' ? 'ar' : 'en-GB');
+
+function greetingKey() {
+  const h = new Date().getHours();
+  if (h < 12) return 'greeting.morning';
+  if (h < 17) return 'greeting.afternoon';
+  return 'greeting.evening';
+}
 
 export default function EmployeeDashboard() {
   const router = useRouter();
-  const { user, loading, hasRole } = useAuth();
+  const { user, loading } = useAuth();
   const { t } = useTranslation();
+  const { language, dir } = useLanguage();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [filter, setFilter] = useState<Filter>('all');
+  const locale = localeOf(language);
+  const Chevron = dir === 'rtl' ? ChevronLeft : ChevronRight;
 
   useEffect(() => {
-    console.log('EmployeeDashboard:', { user, loading });
-    if (loading) return; // Wait for loading to finish
-
+    if (loading) return;
     if (!user) {
       router.push('/auth/login');
       return;
     }
-
     if (!canSubmitRequests(user.roles)) {
       router.push('/');
-      return;
     }
-  }, [user, loading, hasRole, router]);
+  }, [user, loading, router]);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -48,18 +63,38 @@ export default function EmployeeDashboard() {
         }
       }
     };
-
     fetchRequests();
   }, [user, t]);
 
+  const stats = useMemo(() => {
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const yearEnd = new Date(now.getFullYear(), 11, 31);
+    const waiting = requests.filter((r) => r.status === 'pending').length;
+    const shiftsThisMonth = requests.filter((r) => {
+      if (r.type !== 'extra_shift' || r.status !== 'approved') return false;
+      const d = r.startDate.toDate();
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+    const vacationDays = requests
+      .filter((r) => r.type === 'vacation' && r.status === 'approved')
+      .reduce((sum, r) => sum + countWorkdays(r.startDate.toDate(), (r.endDate || r.startDate).toDate(), { start: yearStart, end: yearEnd }), 0);
+    return { waiting, shiftsThisMonth, vacationDays };
+  }, [requests]);
+
+  const missingDocs = requests.filter((r) => isMissingDocument(r));
+  const shown = requests.filter((r) => {
+    if (filter === 'all') return true;
+    const open = STATUS_META[r.status]?.open;
+    return filter === 'open' ? open : !open;
+  });
+
   const handleCancelRequest = async (requestId: string) => {
+    if (!window.confirm(t('home.confirm.cancel'))) return;
     try {
       await cancelRequest(requestId);
-      // Update the local state to reflect the cancellation
-      setRequests(requests.map(request => 
-        request.id === requestId 
-          ? { ...request, status: 'cancelled' } 
-          : request
+      setRequests(requests.map((request) =>
+        request.id === requestId ? { ...request, status: 'cancelled' } : request
       ));
       toast.success(t('request.cancelled'));
     } catch (error) {
@@ -68,174 +103,221 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const fmt = (d: Date) => {
+    const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString(locale, opts);
+  };
+  const dateRange = (r: Request) => {
+    const start = r.startDate.toDate();
+    const end = r.endDate?.toDate();
+    if (!end || end.toDateString() === start.toDateString()) return fmt(start);
+    return `${fmt(start)} – ${fmt(end)}`;
+  };
+
+  const firstName = (user?.displayName || (user as any)?.name || '').split(' ')[0];
+  const today = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+
   if (loading || loadingRequests) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="space-y-5 animate-pulse">
+        <div className="h-44 rounded-3xl bg-slate-200/70" />
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-28 rounded-2xl bg-slate-200/70" />)}
+        </div>
+        <div className="h-20 rounded-2xl bg-slate-200/70" />
+        <div className="h-20 rounded-2xl bg-slate-200/70" />
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-      case 'handled':
-      case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'submitted':
-        return 'bg-blue-100 text-blue-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-yellow-100 text-yellow-800';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-lg mx-auto">
-        {/* Quick Actions Section */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('quick.actions')}</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <Link
-              href="/employee/new-request"
-              className="flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              {t('new.extra.shift')}
-            </Link>
-            <Link
-              href="/employee/new-request?type=vacation"
-              className="flex items-center justify-center bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors text-center font-medium"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {t('new.vacation')}
-            </Link>
-            <Link
-              href="/employee/new-request?type=sick"
-              className="flex items-center justify-center bg-rose-600 text-white px-6 py-3 rounded-lg hover:bg-rose-700 transition-colors text-center font-medium"
-            >
-              {t('new.sick.leave')}
-            </Link>
-            <Link
-              href="/employee/new-request?type=reserve"
-              className="flex items-center justify-center bg-slate-600 text-white px-6 py-3 rounded-lg hover:bg-slate-700 transition-colors text-center font-medium"
-            >
-              {t('new.reserve.duty')}
-            </Link>
-            <Link
-              href="/employee/new-request?type=petty_cash"
-              className="col-span-2 flex items-center justify-center bg-amber-600 text-white px-6 py-3 rounded-lg hover:bg-amber-700 transition-colors text-center font-medium"
-            >
-              {t('new.petty.cash')}
-            </Link>
+    <div className="space-y-7">
+      {/* Greeting + personal numbers */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-navy via-[#2C5C8F] to-brand-blue text-white p-6 sm:p-7 shadow-lg shadow-brand-navy/20">
+        <svg className="pointer-events-none absolute -top-10 -start-16 w-[130%] opacity-[0.12]" viewBox="0 0 600 220" fill="none" aria-hidden>
+          <ellipse cx="300" cy="110" rx="290" ry="70" transform="rotate(-8 300 110)" stroke="white" strokeWidth="14" />
+          <path d="M360 10 L250 210" stroke="white" strokeWidth="40" />
+          <path d="M420 10 L330 210" stroke="white" strokeWidth="26" />
+        </svg>
+        <div className="relative">
+          <p className="text-sm text-white/70">{today}</p>
+          <h1 className="mt-1 text-2xl sm:text-3xl font-bold">
+            {t(greetingKey())}{firstName ? `, ${firstName}` : ''}
+          </h1>
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+            {[
+              { value: stats.waiting, label: t('home.stat.waiting') },
+              { value: stats.shiftsThisMonth, label: t('home.stat.shifts.month') },
+              { value: stats.vacationDays, label: t('home.stat.vacation.year') },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl bg-white/10 ring-1 ring-white/15 backdrop-blur-sm px-3 py-3">
+                <p className="text-2xl sm:text-3xl font-bold leading-none">{s.value}</p>
+                <p className="mt-1.5 text-[11px] sm:text-xs leading-tight text-white/80">{s.label}</p>
+              </div>
+            ))}
           </div>
         </div>
+      </section>
 
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t('my.requests')}</h1>
-        </div>
-
-        <div className="space-y-4">
-          {requests.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <p className="text-gray-500 mb-4">
-                {t('no.requests.found')}
-              </p>
-              <Link
-                href="/employee/new-request"
-                className="inline-flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                {t('create.request')}
-              </Link>
-            </div>
-          ) : (
-            requests.map((request) => (
-              <div
-                key={request.id}
-                className="bg-white rounded-lg shadow p-4 space-y-2"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-lg font-medium text-gray-900">
-                      {t(requestTypeKey(request.type))}
-                    </span>
-                    {request.projectName && (
-                      <p className="text-sm text-gray-500">
-                        {t('project')}: {request.projectName}
-                      </p>
-                    )}
-                    {request.type === 'petty_cash' && (
-                      <p className="text-sm text-gray-700" dir="auto">
-                        {request.description} · <span className="font-semibold">{formatAmount(request.totalAmount || 0)}</span>
-                      </p>
-                    )}
-                  </div>
-                  <span className="flex flex-col items-end gap-1">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        request.status
-                      )}`}
-                    >
-                      {t(`status.${request.status}`)}
-                    </span>
-                    {isMissingDocument(request) && (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                        {t('missing.document')}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-500">
-                  <p>
-                    {t('start.date')}:{' '}
-                    {request.startDate.toDate().toLocaleDateString()}
-                  </p>
-                  {request.endDate && (
-                    <p>
-                      {t('end.date')}:{' '}
-                      {request.endDate.toDate().toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400">
-                  {t('requested.on')}{' '}
-                  {request.createdAt.toDate().toLocaleDateString()}
+      {/* Things the employee must fix */}
+      {missingDocs.length > 0 && (
+        <section className="space-y-2.5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <AlertTriangle className="h-4 w-4" />
+            {t('home.needs.attention')}
+          </h2>
+          {missingDocs.map((r) => (
+            <Link
+              key={r.id}
+              href={`/employee/reports/${r.id}`}
+              className="flex items-center gap-3 rounded-2xl bg-amber-50 ring-1 ring-amber-200 p-4 hover:bg-amber-100/70 transition-colors"
+            >
+              <span className="h-11 w-11 shrink-0 rounded-xl bg-white text-amber-600 flex items-center justify-center ring-1 ring-amber-200">
+                <Paperclip className="h-5 w-5" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900">
+                  {t(requestTypeKey(r.type))} · {dateRange(r)}
                 </p>
-                {isReportType(request.type) && (
-                  <Link
-                    href={`/employee/reports/${request.id}`}
-                    className="inline-block text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    {t('report.details.and.documents')}
-                  </Link>
-                )}
-                {!isReportType(request.type) && request.status !== 'cancelled' && new Date(request.startDate.toDate()) > new Date() && (
-                  <button
-                    onClick={() => handleCancelRequest(request.id)}
-                    className="text-sm text-red-600 hover:text-red-800"
-                  >
-                    {t('cancel.request')}
-                  </button>
-                )}
+                <p className="text-sm text-amber-900/80">{t('home.missing.doc.text')}</p>
               </div>
-            ))
+              <span className="hidden sm:flex items-center gap-1.5 rounded-xl bg-amber-500 text-white text-sm font-medium px-3.5 py-2">
+                <Upload className="h-4 w-4" />
+                {t('home.upload.now')}
+              </span>
+              <Chevron className="sm:hidden h-5 w-5 text-amber-600" />
+            </Link>
+          ))}
+        </section>
+      )}
+
+      {/* One tap to start any request */}
+      <section>
+        <h2 className="text-lg font-semibold text-slate-900 mb-3">{t('home.what.today')}</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {TYPE_ORDER.map((type) => {
+            const meta = TYPE_META[type];
+            const Icon = meta.icon;
+            return (
+              <Link
+                key={type}
+                href={`/employee/new-request?type=${type}`}
+                className={`group rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 hover:ring-brand-blue/40 hover:-translate-y-0.5 transition-all
+                  ${type === 'petty_cash' ? 'col-span-2 sm:col-span-1 flex sm:block items-center gap-3' : ''}`}
+              >
+                <span className={`h-12 w-12 rounded-2xl flex items-center justify-center ${meta.badge} group-hover:scale-105 transition-transform`}>
+                  <Icon className="h-6 w-6" />
+                </span>
+                <span className="block sm:mt-3">
+                  <span className={`block font-semibold text-slate-900 ${type === 'petty_cash' ? '' : 'mt-3 sm:mt-0'}`}>{t(requestTypeKey(type))}</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">{t(`tile.${type}.hint`)}</span>
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* History */}
+      <section>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-lg font-semibold text-slate-900">{t('home.history')}</h2>
+          {requests.length > 0 && (
+            <div className="flex rounded-xl bg-slate-200/60 p-1 text-sm">
+              {(['all', 'open', 'done'] as Filter[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                    filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {t(`home.filter.${f}`)}
+                </button>
+              ))}
+            </div>
           )}
         </div>
-      </div>
+
+        {requests.length === 0 ? (
+          <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-10 text-center">
+            <div className="mx-auto h-14 w-14 rounded-2xl bg-brand-blue-light text-brand-navy flex items-center justify-center mb-3">
+              <Paperclip className="h-6 w-6" />
+            </div>
+            <p className="font-semibold text-slate-900">{t('home.empty.title')}</p>
+            <p className="text-sm text-slate-500 mt-1">{t('home.empty.text')}</p>
+          </div>
+        ) : (
+          <ul className="space-y-2.5">
+            {shown.map((request) => {
+              const meta = TYPE_META[request.type] || TYPE_META.extra_shift;
+              const status = STATUS_META[request.status] || STATUS_META.pending;
+              const Icon = meta.icon;
+              const StatusIcon = status.icon;
+              const isReport = isReportType(request.type);
+              const canCancel = !isReport && request.status !== 'cancelled' && request.startDate.toDate() > new Date();
+              const detail = request.type === 'petty_cash'
+                ? `${request.description || ''} · ${formatAmount(request.totalAmount || 0)}`
+                : request.projectName;
+
+              const body = (
+                <div className="flex items-start gap-3">
+                  <span className={`h-11 w-11 shrink-0 rounded-xl flex items-center justify-center ${meta.badge}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{t(requestTypeKey(request.type))}</p>
+                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${status.pill}`}>
+                        <StatusIcon className="h-3.5 w-3.5" />
+                        {t(status.longKey && language !== 'en' ? status.longKey : `status.${request.status}`)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 mt-0.5">{dateRange(request)}</p>
+                    {detail && <p className="text-sm text-slate-500 truncate" dir="auto">{detail}</p>}
+                    {(isReport || canCancel) && (
+                      <div className="mt-2 flex items-center gap-4 text-sm">
+                        {isReport && (
+                          <span className="inline-flex items-center gap-1 font-medium text-brand-blue">
+                            {t('home.open.details')}
+                            <Chevron className="h-4 w-4" />
+                          </span>
+                        )}
+                        {canCancel && (
+                          <button
+                            onClick={() => handleCancelRequest(request.id)}
+                            className="font-medium text-slate-500 hover:text-red-600"
+                          >
+                            {t('cancel.request')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+
+              return (
+                <li key={request.id}>
+                  {isReport ? (
+                    <Link
+                      href={`/employee/reports/${request.id}`}
+                      className="block rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 hover:ring-brand-blue/40 transition"
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className={`rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 ${request.status === 'cancelled' ? 'opacity-60' : ''}`}>
+                      {body}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
-} 
+}

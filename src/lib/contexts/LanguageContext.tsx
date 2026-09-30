@@ -11,10 +11,30 @@ interface LanguageContextType {
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+const STORAGE_KEY = 'worklog.language';
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en');
-  const [dir, setDir] = useState<'ltr' | 'rtl'>('ltr');
+  // Hebrew by default; the user's choice is remembered on this device
+  const [language, setLanguageState] = useState<Language>('he');
+  const [dir, setDir] = useState<'ltr' | 'rtl'>('rtl');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as Language | null;
+      if (saved === 'en' || saved === 'he' || saved === 'ar') setLanguageState(saved);
+    } catch {
+      // storage unavailable (private mode) - keep the default
+    }
+  }, []);
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     // Update document direction based on language
@@ -37,4 +57,4 @@ export function useLanguage() {
     throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
-} 
+}
