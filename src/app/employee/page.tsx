@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { canSubmitRequests } from '@/lib/roles';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
@@ -8,6 +9,8 @@ import { getRequestsByEmployee, cancelRequest } from '@/lib/firebase/firebaseUti
 import { Request } from '@/lib/types';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { requestTypeKey, isReportType, isMissingDocument } from '@/lib/firebase/reports';
+import { formatAmount } from '@/lib/firebase/attachments';
 
 export default function EmployeeDashboard() {
   const router = useRouter();
@@ -25,7 +28,7 @@ export default function EmployeeDashboard() {
       return;
     }
 
-    if (!hasRole('employee')) {
+    if (!canSubmitRequests(user.roles)) {
       router.push('/');
       return;
     }
@@ -76,7 +79,11 @@ export default function EmployeeDashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
+      case 'handled':
+      case 'paid':
         return 'bg-green-100 text-green-800';
+      case 'submitted':
+        return 'bg-blue-100 text-blue-800';
       case 'rejected':
         return 'bg-red-100 text-red-800';
       case 'cancelled':
@@ -110,6 +117,24 @@ export default function EmployeeDashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               {t('new.vacation')}
+            </Link>
+            <Link
+              href="/employee/new-request?type=sick"
+              className="flex items-center justify-center bg-rose-600 text-white px-6 py-3 rounded-lg hover:bg-rose-700 transition-colors text-center font-medium"
+            >
+              {t('new.sick.leave')}
+            </Link>
+            <Link
+              href="/employee/new-request?type=reserve"
+              className="flex items-center justify-center bg-slate-600 text-white px-6 py-3 rounded-lg hover:bg-slate-700 transition-colors text-center font-medium"
+            >
+              {t('new.reserve.duty')}
+            </Link>
+            <Link
+              href="/employee/new-request?type=petty_cash"
+              className="col-span-2 flex items-center justify-center bg-amber-600 text-white px-6 py-3 rounded-lg hover:bg-amber-700 transition-colors text-center font-medium"
+            >
+              {t('new.petty.cash')}
             </Link>
           </div>
         </div>
@@ -146,20 +171,32 @@ export default function EmployeeDashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-lg font-medium text-gray-900">
-                      {t(request.type === 'extra_shift' ? 'extra.shift' : 'vacation')}
+                      {t(requestTypeKey(request.type))}
                     </span>
                     {request.projectName && (
                       <p className="text-sm text-gray-500">
                         {t('project')}: {request.projectName}
                       </p>
                     )}
+                    {request.type === 'petty_cash' && (
+                      <p className="text-sm text-gray-700" dir="auto">
+                        {request.description} · <span className="font-semibold">{formatAmount(request.totalAmount || 0)}</span>
+                      </p>
+                    )}
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                      request.status
-                    )}`}
-                  >
-                    {t(`status.${request.status}`)}
+                  <span className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                        request.status
+                      )}`}
+                    >
+                      {t(`status.${request.status}`)}
+                    </span>
+                    {isMissingDocument(request) && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {t('missing.document')}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="text-sm text-gray-500">
@@ -178,7 +215,15 @@ export default function EmployeeDashboard() {
                   {t('requested.on')}{' '}
                   {request.createdAt.toDate().toLocaleDateString()}
                 </p>
-                {request.status !== 'cancelled' && new Date(request.startDate.toDate()) > new Date() && (
+                {isReportType(request.type) && (
+                  <Link
+                    href={`/employee/reports/${request.id}`}
+                    className="inline-block text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    {t('report.details.and.documents')}
+                  </Link>
+                )}
+                {!isReportType(request.type) && request.status !== 'cancelled' && new Date(request.startDate.toDate()) > new Date() && (
                   <button
                     onClick={() => handleCancelRequest(request.id)}
                     className="text-sm text-red-600 hover:text-red-800"

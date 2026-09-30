@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { canSubmitRequests } from '@/lib/roles';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
@@ -9,6 +10,11 @@ import { Request, User } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Download } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { countWorkdays, countCalendarDays } from '@/lib/workdays';
+import { requestTypeKey, isMissingDocument } from '@/lib/firebase/reports';
+import { formatAmount } from '@/lib/firebase/attachments';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
+import type { SummaryRow, DetailRow } from '@/lib/excelReport';
 
 interface EmployeeStats {
   name: string;
@@ -23,6 +29,11 @@ interface EmployeeStats {
     approved: number;
     rejected: number;
   };
+  sickDays: number;
+  reserveDays: number;
+  pettyCashTotal: number;
+  pettyCashUnpaid: number;
+  missingDocuments: number;
 }
 
 type RequestStats = {
@@ -38,6 +49,10 @@ type RequestStats = {
     pending: number;
   }>;
   employeeStats: EmployeeStats[];
+  // For the Excel "details" sheet: every non-cancelled request in the period
+  periodRequests: Request[];
+  userNames: Record<string, string>;
+  dateFilter: { start: Date; end: Date };
 };
 
 console.log('REPORTS PAGE LOADED - OUTSIDE COMPONENT');
@@ -47,9 +62,12 @@ export default function Reports() {
   
   const { user, loading } = useAuth();
   const { t } = useTranslation();
+  const { dir } = useLanguage();
   const [stats, setStats] = useState<RequestStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11 for Jan-Dec
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
   const [selectedView, setSelectedView] = useState<'month' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'trends' | 'employees'>('employees');
 
@@ -65,81 +83,7 @@ export default function Reports() {
         getDocs(collection(db, 'users'))
       ]);
 
-      // --- START HOLIDAY CALCULATION LOGIC ---
-
-      const jewishHolidays: { [year: number]: string[] } = {
-        2024: [
-          '2024-04-23', '2024-04-24', '2024-04-29', '2024-04-30', '2024-06-12', 
-          '2024-10-03', '2024-10-04', '2024-10-12', '2024-10-17', '2024-10-18', 
-          '2024-10-24', '2024-10-25',
-        ],
-        2025: [
-          '2025-04-13', '2025-04-14', '2025-04-19', '2025-04-20', '2025-06-02', 
-          '2025-09-23', '2025-09-24', '2025-10-02', '2025-10-07', '2025-10-08', 
-          '2025-10-14', '2025-10-15',
-        ],
-      };
-
-      const toLocalDateString = (date: Date): string => {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-      
-      const holidaysWithEves = (() => {
-        const holidaysByYear = JSON.parse(JSON.stringify(jewishHolidays));
-        for (const year in holidaysByYear) {
-          const eves = new Set<string>();
-          holidaysByYear[year].forEach((holidayStr: string) => {
-            const [y, m, d] = holidayStr.split('-').map(Number);
-            const holidayUTC = new Date(Date.UTC(y, m - 1, d));
-            holidayUTC.setUTCDate(holidayUTC.getUTCDate() - 1);
-            const eveStr = holidayUTC.toISOString().slice(0, 10);
-            eves.add(eveStr);
-          });
-          const originalHolidays = new Set(holidaysByYear[year]);
-          const combinedHolidays = new Set([...Array.from(originalHolidays), ...Array.from(eves)]);
-          holidaysByYear[year] = Array.from(combinedHolidays);
-        }
-        return holidaysByYear;
-      })();
-
-      const isWorkday = (date: Date, holidays: string[]): boolean => {
-        const day = date.getDay();
-        if (day > 4) return false; 
-        const dateStr = toLocalDateString(date);
-        return !holidays.includes(dateStr);
-      }
-
-      const countWorkdays = (
-        start: Date,
-        end: Date,
-        filter?: { start: Date; end: Date }
-      ): number => {
-        let count = 0;
-        let current = new Date(start);
-        current.setHours(0, 0, 0, 0);
-
-        const inclusiveEnd = new Date(end);
-        inclusiveEnd.setHours(23, 59, 59, 999);
-
-        while (current <= inclusiveEnd) {
-          const year = current.getFullYear();
-          const holidaysForYear = holidaysWithEves[year] || [];
-          const isInFilter = filter
-            ? current >= filter.start && current <= filter.end
-            : true;
-
-          if (isInFilter && isWorkday(current, holidaysForYear)) {
-            count++;
-          }
-          current.setDate(current.getDate() + 1);
-        }
-        return count;
-      }
-
-      // --- END HOLIDAY CALCULATION LOGIC ---
+      // Workday / holiday calculation lives in src/lib/workdays.ts
 
       // Convert snapshots to typed arrays
       const requests = requestsSnapshot.docs.map(doc => ({
@@ -152,20 +96,33 @@ export default function Reports() {
         id: doc.id,
       })) as User[];
 
-      // Define date range for filtering based on selected month/year
-      const year = new Date().getFullYear();
-      const monthStart = new Date(year, selectedMonth, 1, 0, 0, 0, 0);
-      const monthEnd = new Date(year, selectedMonth + 1, 0, 23, 59, 59, 999);
-      const dateFilter = selectedView === 'month' ? { start: monthStart, end: monthEnd } : undefined;
+      // Years that have data (for the year selector), always including the current year
+      const yearsWithData = new Set<number>([new Date().getFullYear()]);
+      requests.forEach(r => {
+        const start = r.startDate?.toDate?.();
+        if (start) yearsWithData.add(start.getFullYear());
+      });
+      setAvailableYears(Array.from(yearsWithData).sort((a, b) => b - a));
 
-      // Filter requests for top-level stats
-      const filteredRequests = requests.filter(request => {
-        if (selectedView === 'year') return true;
+      // Define date range for filtering based on selected month/year
+      const year = selectedYear;
+      const rangeStart = selectedView === 'month'
+        ? new Date(year, selectedMonth, 1, 0, 0, 0, 0)
+        : new Date(year, 0, 1, 0, 0, 0, 0);
+      const rangeEnd = selectedView === 'month'
+        ? new Date(year, selectedMonth + 1, 0, 23, 59, 59, 999)
+        : new Date(year, 11, 31, 23, 59, 59, 999);
+      const dateFilter = { start: rangeStart, end: rangeEnd };
+
+      const overlapsRange = (request: Request) => {
         const start = request.startDate?.toDate?.();
         const end = request.endDate?.toDate?.() || start;
         if (!start) return false;
-        return start <= monthEnd && end >= monthStart;
-      });
+        return start <= rangeEnd && end >= rangeStart;
+      };
+
+      // Filter requests for top-level stats
+      const filteredRequests = requests.filter(overlapsRange);
 
       // Calculate basic stats
       const totalRequests = filteredRequests.filter(r => r.status !== 'cancelled').length;
@@ -186,37 +143,31 @@ export default function Reports() {
       const requestsByMonth = months.map(month => ({
         month,
         approved: filteredRequests.filter(r => 
-          r.createdAt.toDate().getMonth() === months.indexOf(month) && 
+          r.startDate?.toDate?.()?.getMonth() === months.indexOf(month) && 
           r.status === 'approved'
         ).length,
         rejected: filteredRequests.filter(r => 
-          r.createdAt.toDate().getMonth() === months.indexOf(month) && 
+          r.startDate?.toDate?.()?.getMonth() === months.indexOf(month) && 
           r.status === 'rejected'
         ).length,
         pending: filteredRequests.filter(r => 
-          r.createdAt.toDate().getMonth() === months.indexOf(month) && 
+          r.startDate?.toDate?.()?.getMonth() === months.indexOf(month) && 
           r.status === 'pending'
         ).length,
       }));
 
       // Calculate employee stats
       const employeeStats: EmployeeStats[] = await Promise.all(users
-        .filter(u => u.roles.includes('employee'))
+        .filter(u => canSubmitRequests(u.roles))
         .map(async (employee) => {
           // Get all requests for the employee, not yet filtered by date
           const employeeRequests = requests.filter(r => r.employeeId === employee.id && r.status !== 'cancelled');
 
           // Apply the monthly date filter for stats like extra shifts
-          const monthlyFilteredRequests = employeeRequests.filter(request => {
-            if (selectedView === 'year' || !dateFilter) return true;
-            const start = request.startDate?.toDate?.();
-            const end = request.endDate?.toDate?.() || start;
-            if (!start) return false;
-            return start <= dateFilter.end && end >= dateFilter.start;
-          });
+          const monthlyFilteredRequests = employeeRequests.filter(overlapsRange);
           
           const monthlyExtraShiftRequests = monthlyFilteredRequests.filter(r => r.type === 'extra_shift');
-          const vacationRequests = employeeRequests.filter(r => r.type === 'vacation');
+          const vacationRequests = employeeRequests.filter(r => r.type === 'vacation' && overlapsRange(r));
 
           const calculateDays = (requestsToCalc: Request[]) => {
             return requestsToCalc.reduce((total, request) => {
@@ -232,6 +183,18 @@ export default function Reports() {
 
           const totalVacationDays = calculateDays(vacationRequests.filter(r => r.status === 'approved'));
 
+          // Sick leave counts workdays (like vacation); reserve duty counts calendar days (like form 3010)
+          const sickDays = monthlyFilteredRequests
+            .filter(r => r.type === 'sick')
+            .reduce((sum, r) => sum + countWorkdays(r.startDate.toDate(), (r.endDate || r.startDate).toDate(), dateFilter), 0);
+          const reserveDays = monthlyFilteredRequests
+            .filter(r => r.type === 'reserve')
+            .reduce((sum, r) => sum + countCalendarDays(r.startDate.toDate(), (r.endDate || r.startDate).toDate(), dateFilter), 0);
+          const pettyCash = monthlyFilteredRequests.filter(r => r.type === 'petty_cash');
+          const pettyCashTotal = pettyCash.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+          const pettyCashUnpaid = pettyCash.filter(r => r.status === 'submitted').reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+          const missingDocuments = monthlyFilteredRequests.filter(isMissingDocument).length;
+
           return {
             name: employee.displayName || employee.email || 'Unknown',
             totalRequests: monthlyFilteredRequests.length,
@@ -245,6 +208,11 @@ export default function Reports() {
               approved: vacationRequests.filter(r => r.status === 'approved').length,
               rejected: vacationRequests.filter(r => r.status === 'rejected').length,
             },
+            sickDays,
+            reserveDays,
+            pettyCashTotal: Math.round(pettyCashTotal * 100) / 100,
+            pettyCashUnpaid: Math.round(pettyCashUnpaid * 100) / 100,
+            missingDocuments,
           };
         })
       );
@@ -258,6 +226,9 @@ export default function Reports() {
         requestsByType,
         requestsByMonth,
         employeeStats,
+        periodRequests: filteredRequests.filter(r => r.status !== 'cancelled'),
+        userNames: Object.fromEntries(users.map(u => [u.id, u.displayName || u.email || 'Unknown'])),
+        dateFilter,
       };
 
       setStats(newStats);
@@ -267,7 +238,7 @@ export default function Reports() {
     } finally {
       setLoadingStats(false);
     }
-  }, [selectedMonth, selectedView, t]);
+  }, [selectedMonth, selectedYear, selectedView, t]);
 
   useEffect(() => {
     if (user) {
@@ -275,40 +246,84 @@ export default function Reports() {
     }
   }, [user, fetchStats]);
 
-  const handleExportCSV = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
     if (!stats) return;
+    setExporting(true);
+    try {
+      const { downloadReport } = await import('@/lib/excelReport');
+      const monthNames = [
+        t('month.january'), t('month.february'), t('month.march'), t('month.april'),
+        t('month.may'), t('month.june'), t('month.july'), t('month.august'),
+        t('month.september'), t('month.october'), t('month.november'), t('month.december'),
+      ];
+      const period = selectedView === 'year' ? `${selectedYear}` : `${monthNames[selectedMonth]} ${selectedYear}`;
 
-    const title =
-      selectedView === 'year'
-        ? `${t('employee.statistics')} - ${new Date().getFullYear()}`
-        : `${t('employee.statistics')} - ${t(`months.${stats.requestsByMonth[selectedMonth].month.toLowerCase()}`)} ${new Date().getFullYear()}`;
+      const summary: SummaryRow[] = stats.employeeStats.map(e => ({
+        name: e.name,
+        extraShiftsTotal: e.extraShifts.total,
+        extraShiftsApproved: e.extraShifts.approved,
+        extraShiftsRejected: e.extraShifts.rejected,
+        vacationDays: e.vacations.total,
+        sickDays: e.sickDays,
+        reserveDays: e.reserveDays,
+        pettyCashTotal: e.pettyCashTotal,
+        pettyCashUnpaid: e.pettyCashUnpaid,
+        missingDocuments: e.missingDocuments,
+      })).sort((a, b) => a.name.localeCompare(b.name, 'he'));
 
-    const dataRows = stats.employeeStats.map(employee => [
-      employee.name,
-      employee.extraShifts.total,
-      employee.extraShifts.approved,
-      employee.extraShifts.rejected,
-      employee.vacations.total
-    ]);
+      const { dateFilter } = stats;
+      const details: DetailRow[] = stats.periodRequests
+        .map(r => {
+          const from = r.startDate.toDate() as Date;
+          const to = r.endDate ? (r.endDate.toDate() as Date) : null;
+          const days =
+            r.type === 'vacation' || r.type === 'sick' ? countWorkdays(from, to || from, dateFilter)
+            : r.type === 'reserve' ? countCalendarDays(from, to || from, dateFilter)
+            : null;
+          return {
+            employee: stats.userNames[r.employeeId] || t('unknown.employee'),
+            type: t(requestTypeKey(r.type)),
+            status: t(`status.${r.status}`),
+            from,
+            to,
+            days,
+            details: [r.projectName, r.description].filter(Boolean).join(' - '),
+            amount: r.type === 'petty_cash' ? r.totalAmount || 0 : null,
+            files: r.attachmentCount ?? null,
+            missingDocument: isMissingDocument(r),
+          };
+        })
+        .sort((a, b) => a.employee.localeCompare(b.employee, 'he') || a.from.getTime() - b.from.getTime());
 
-    const csvContent = [
-      [title],
-      [],
-      [t('employee.name'), t('total.extra.shifts'), t('extra.shifts.approved'), t('extra.shifts.rejected'), t('total.vacation.days')],
-      ...dataRows
-    ]
-      .map(row => row.join(','))
-      .join('\n');
+      const fileName = selectedView === 'year'
+        ? `worklog-report-${selectedYear}.xlsx`
+        : `worklog-report-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}.xlsx`;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `employee-stats-${selectedView === 'year' ? 'full-year' : stats.requestsByMonth[selectedMonth].month.toLowerCase()}-${new Date().getFullYear()}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      await downloadReport(fileName, summary, details, {
+        title: `${t('report.excel.title')} - ${period}`,
+        summarySheet: t('report.excel.summary'),
+        detailsSheet: t('report.excel.details'),
+        summaryHeaders: [
+          t('employee.name'), t('total.extra.shifts'), t('extra.shifts.approved'), t('extra.shifts.rejected'),
+          t('total.vacation.days'), t('report.sick.days'), t('report.reserve.days'),
+          t('report.petty.cash.total'), t('report.petty.cash.unpaid'), t('report.missing.documents'),
+        ],
+        detailHeaders: [
+          t('employee.name'), t('request.type'), t('status'), t('start.date'), t('end.date'),
+          t('days'), t('report.excel.project.description'), t('petty.cash.amount'), t('documents'), t('missing.document'),
+        ],
+        total: t('petty.cash.total'),
+        yes: '\u2713',
+        rtl: dir === 'rtl',
+      });
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      toast.error(t('report.excel.error'));
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading || loadingStats) {
@@ -341,6 +356,17 @@ export default function Reports() {
             <option value="month">{t('this.month')}</option>
             <option value="year">{t('full.year')}</option>
           </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+          >
+            {availableYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
           {selectedView === 'month' && (
             <select
               value={selectedMonth}
@@ -355,11 +381,12 @@ export default function Reports() {
             </select>
           )}
           <button
-            onClick={handleExportCSV}
-            className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700"
+            onClick={handleExportExcel}
+            disabled={exporting || !stats}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
           >
-            <Download className="h-5 w-5 mr-2" />
-            {t('export.csv')}
+            <Download className="h-5 w-5" />
+            {exporting ? t('report.excel.exporting') : t('export.excel')}
           </button>
         </div>
       </div>
@@ -427,6 +454,18 @@ export default function Reports() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('total.vacation.days')}
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('report.sick.days')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('report.reserve.days')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('petty.cash')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('report.missing.documents')}
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -446,6 +485,18 @@ export default function Reports() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {employee.vacations.total}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {employee.sickDays}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {employee.reserveDays}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {employee.pettyCashTotal ? formatAmount(employee.pettyCashTotal) : 0}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${employee.missingDocuments ? 'text-amber-700 font-medium' : 'text-gray-500'}`}>
+                    {employee.missingDocuments}
                   </td>
                 </tr>
               ))}

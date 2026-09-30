@@ -3,14 +3,26 @@
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function OfficeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const authState = useAuth();
+  const { user } = authState;
+
+  // Only users with the office role may use this area
+  const { loading, hasRole } = authState;
+  const router = useRouter();
+  const allowed = !!user && hasRole('office');
+  useEffect(() => {
+    if (loading) return;
+    if (!user) router.replace('/auth/login');
+    else if (!hasRole('office')) router.replace('/');
+  }, [loading, user, hasRole, router]);
   const pathname = usePathname();
   const { t } = useTranslation();
 
@@ -19,6 +31,14 @@ export default function OfficeLayout({
       ? 'nav-link-active'
       : 'nav-link';
   };
+
+  if (!allowed) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -49,6 +69,12 @@ export default function OfficeLayout({
                 className={isActive('/office/reports')}
               >
                 {t('reports')}
+              </Link>
+              <Link
+                href="/office/documents"
+                className={isActive('/office/documents')}
+              >
+                {t('office.documents.nav')}
               </Link>
               <Link
                 href="/office/settings"

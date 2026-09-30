@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      // Allow user to create their own document - only as a regular employee (SECURITY FIX)
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.get('roles', ['employee']) == ['employee'];
+      // Allow user to update their own document - but NOT change their own roles (SECURITY FIX)
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.get('roles', null) == resource.data.get('roles', null);
+      // Allow office to update or delete any user
+      allow update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office']);
+    }
+
+    // Requests collection
+    match /requests/{requestId} {
+      allow read: if request.auth != null;
+      // Employees create requests only for themselves, and only as new - never pre-approved (SECURITY FIX)
+      allow create: if request.auth != null
+        && request.resource.data.employeeId == request.auth.uid
+        && (
+          (request.resource.data.type in ['vacation', 'extra_shift'] && request.resource.data.status == 'pending') ||
+          (request.resource.data.type in ['sick', 'reserve'] && request.resource.data.status == 'submitted'
+            && request.resource.data.get('attachmentCount', 0) == 0) ||
+          (request.resource.data.type == 'petty_cash' && request.resource.data.status == 'submitted'
+            && request.resource.data.get('attachmentCount', 0) == 0
+            && request.resource.data.get('totalAmount', 0) == 0)
+        );
+      // Manager/office may update any request (approve, reject, mark handled)
+      allow update: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['manager', 'office']);
+      // Employee, on their own request, may only: cancel it, or edit an open sick/reserve/petty cash report (SECURITY FIX)
+      allow update: if request.auth != null
+        && resource.data.employeeId == request.auth.uid
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status == 'cancelled'
+            && resource.data.status in ['pending', 'approved', 'submitted']) ||
+          (resource.data.type in ['sick', 'reserve']
+            && resource.data.status == 'submitted'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['startDate', 'endDate', 'attachmentCount', 'updatedAt'])) ||
+          (resource.data.type == 'petty_cash'
+            && resource.data.status == 'submitted'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachmentCount', 'totalAmount', 'updatedAt']))
+        );
+      // Deleting requests is not used by the site; only manager/office
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['manager', 'office']);
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Only the intended user can read their notifications
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Any authenticated user can create notifications (e.g. employee -> manager, manager -> employee)
+      allow create: if request.auth != null && request.resource.data.userId is string;
+      // Only the recipient may mark as read or delete (SECURITY FIX - previously anyone could)
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Attachments collection (sick notes, form 3010, receipts) - NEW
+    // Only the employee who uploaded the file and office users can see or delete it.
+    // Managers and other employees have no access.
+    match /attachments/{attachmentId} {
+      allow read: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office'])
+      );
+      // Office may delete any file; the employee only while their report is still open
+      allow delete: if request.auth != null && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office']) ||
+        (resource.data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/requests/$(resource.data.requestId)).data.status == 'submitted')
+      );
+      // Only on your own, still-open request
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.requestId is string
+        && request.resource.data.fileName is string
+        && request.resource.data.data is bytes
+        && request.resource.data.data.size() <= 1000000
+        && get(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.employeeId == request.auth.uid
+        && get(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.status == 'submitted';
+      allow update: if false;
+    }
+
+    // WorkLogs collection
+    match /workLogs/{logId} {
+      allow read: if request.auth != null;
+      // Only manager/office can write work logs
+      allow write: if request.auth != null && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['manager', 'office'])
+      );
+    }
+  }
+}

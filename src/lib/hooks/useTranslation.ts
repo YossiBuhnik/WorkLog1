@@ -10,7 +10,7 @@ export function useTranslation() {
       console.warn(`Translation missing for key: ${key}`);
       return key;
     }
-    return translations[key][language];
+    return translations[key][language] ?? translations[key].en;
   }, [language]);
 
   return { t };

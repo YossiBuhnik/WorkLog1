@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -35,5 +35,17 @@ try {
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+// Local development only: use the Firebase Emulator (set in .env.development.local).
+// This variable is not defined on Vercel, so production always uses real Firebase.
+if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
+  const globalForEmulator = globalThis as typeof globalThis & { __firebaseEmulatorConnected?: boolean };
+  if (!globalForEmulator.__firebaseEmulatorConnected) {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    globalForEmulator.__firebaseEmulatorConnected = true;
+    console.log('Firebase: using LOCAL EMULATOR (fake data)');
+  }
+}
 
 export { app, auth, db, storage };

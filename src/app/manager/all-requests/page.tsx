@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { requestTypeKey } from '@/lib/firebase/reports';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -40,16 +41,16 @@ export default function AllRequests() {
       try {
         console.log('Fetching requests for manager:', user.id);
         const requestsRef = collection(db, 'requests');
+        // All requests of all employees - every manager can see and approve any request
         let q = query(
           requestsRef,
-          where('managerId', '==', user.id),
           orderBy('createdAt', 'desc')
         );
 
         const querySnapshot = await getDocs(q);
         console.log('Fetched requests count:', querySnapshot.docs.length);
         
-        const fetchedRequests = querySnapshot.docs.map(doc => {
+        const fetchedRequests = querySnapshot.docs.filter(doc => doc.data().type !== 'petty_cash').map(doc => {
           const data = doc.data();
           console.log('Request data:', { id: doc.id, ...data });
           return {
@@ -153,7 +154,7 @@ export default function AllRequests() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <p className="text-sm font-medium text-indigo-600 truncate">
-                        {t(request.type === 'extra_shift' ? 'extra.shift' : 'vacation')}
+                        {t(requestTypeKey(request.type))}
                       </p>
                       <span
                         className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(

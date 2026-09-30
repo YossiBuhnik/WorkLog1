@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { requestTypeKey } from '@/lib/firebase/reports';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
-import { Request, User } from '@/lib/types';
+import { Request, User, RequestType } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 interface ScheduleItem {
   employeeId: string;
   employeeName: string;
-  type: 'extra_shift' | 'vacation';
+  type: RequestType;
   startDate: Date;
   endDate?: Date;
   projectName?: string;
@@ -32,15 +33,17 @@ export default function Schedule() {
       if (!user) return;
 
       try {
-        // Get approved requests
+        // Approved requests of all employees (every manager sees everyone), plus sick / reserve
+        // reports so the manager knows who is absent. Petty cash is office-only.
         const requestsRef = collection(db, 'requests');
         const requestsQuery = query(
           requestsRef,
-          where('managerId', '==', user.id),
-          where('status', '==', 'approved')
+          where('status', 'in', ['approved', 'submitted', 'handled'])
         );
         const requestsSnapshot = await getDocs(requestsQuery);
-        const requests = requestsSnapshot.docs.map(doc => doc.data() as Request);
+        const requests = requestsSnapshot.docs
+          .map(doc => doc.data() as Request)
+          .filter(request => request.type !== 'petty_cash');
 
         // Get all employees
         const employeesRef = collection(db, 'users');
@@ -126,7 +129,7 @@ export default function Schedule() {
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-purple-100 text-purple-800'
                       }`}>
-                        {t(item.type === 'extra_shift' ? 'extra.shift' : 'vacation')}
+                        {t(requestTypeKey(item.type))}
                       </span>
                     </div>
                   </div>

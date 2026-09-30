@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { requestTypeKey } from '@/lib/firebase/reports';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { collection, query, getDocs, where, orderBy, limit, and, onSnapshot, documentId } from 'firebase/firestore';
@@ -258,7 +259,7 @@ export default function OfficeDashboard() {
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium">
-                            {request.type === 'vacation' ? 'Vacation Request by' : 'Extra Shift Request by'} {request.employeeName || 'Unknown'}
+                            {t(requestTypeKey(request.type))} - {request.employeeName || 'Unknown'}
                           </h3>
                           <p className="text-sm text-gray-500">{`Request Date: ${request.createdAt.toDate().toLocaleDateString()}`}</p>
                         </div>
@@ -266,7 +267,7 @@ export default function OfficeDashboard() {
                           {`Status: ${request.status}`}{request.status === 'approved' && ` by ${request.approvedByName || 'N/A'}`}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {request.type === 'extra_shift'
+                          {(request.type === 'extra_shift' || request.type === 'petty_cash')
                             ? `Shift Date: ${request.startDate.toDate().toLocaleDateString()}`
                             : `Dates: ${request.startDate.toDate().toLocaleDateString()} - ${request.endDate?.toDate().toLocaleDateString()}`}
                         </p>

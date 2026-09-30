@@ -12,10 +12,9 @@ export const usePendingRequests = (managerId: string | undefined) => {
       return;
     }
 
-    // Create a query for pending requests for this manager
+    // All pending requests: every manager can approve any request (not only ones assigned to them)
     const q = query(
       collection(db, 'requests'),
-      where('managerId', '==', managerId),
       where('status', '==', 'pending')
     );
 

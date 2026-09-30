@@ -4,15 +4,19 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from '../hooks/useAuth';
 import { getUnreadNotifications, markNotificationAsRead } from '../firebase/firebaseUtils';
 import { Notification } from '../types';
-import { collection, query, where, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
 }
+
+const sortNewestFirst = (list: Notification[]) =>
+  list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -26,17 +30,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const notificationsRef = collection(db, 'notifications');
-      const q = query(
-        notificationsRef,
-        where('userId', '==', user.id),
-        orderBy('createdAt', 'desc')
-      );
+      // No orderBy here: userId + orderBy(createdAt) would need a composite index in Firestore.
+      // Sorting is done in memory instead.
+      const q = query(notificationsRef, where('userId', '==', user.id));
       
       const querySnapshot = await getDocs(q);
-      const notificationsList = querySnapshot.docs.map(doc => ({
+      const notificationsList = sortNewestFirst(querySnapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
-      })) as Notification[];
+      })) as Notification[]);
       
       setNotifications(notificationsList);
       const unreadCount = notificationsList.filter(n => !n.read).length;
@@ -51,6 +53,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await refreshNotifications();
   };
 
+  const markAllAsRead = async () => {
+    await Promise.all(notifications.filter(n => !n.read && n.id).map(n => markNotificationAsRead(n.id as string)));
+    await refreshNotifications();
+  };
+
   useEffect(() => {
     refreshNotifications();
     
@@ -58,17 +65,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user?.id) return;
     
     const notificationsRef = collection(db, 'notifications');
-    const q = query(
-      notificationsRef,
-      where('userId', '==', user.id),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(notificationsRef, where('userId', '==', user.id));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notificationsList = snapshot.docs.map(doc => ({
+      const notificationsList = sortNewestFirst(snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
-      })) as Notification[];
+      })) as Notification[]);
       
       setNotifications(notificationsList);
       const unreadCount = notificationsList.filter(n => !n.read).length;
@@ -82,6 +85,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     notifications,
     unreadCount,
     markAsRead,
+    markAllAsRead,
     refreshNotifications,
   };
 

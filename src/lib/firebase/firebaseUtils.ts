@@ -261,6 +261,16 @@ export const createNotification = async (notificationData: Omit<Notification, 'i
   return notificationRef.id;
 };
 
+/** Sends the same notification to every manager (optionally skipping one user, e.g. the sender). */
+export const notifyManagers = async (
+  notification: Omit<Notification, 'id' | 'read' | 'createdAt' | 'userId'>,
+  excludeUserId?: string
+) => {
+  const snapshot = await getDocs(query(collection(db, 'users'), where('roles', 'array-contains', 'manager')));
+  const managerIds = snapshot.docs.map(d => d.id).filter(id => id !== excludeUserId);
+  await Promise.all(managerIds.map(userId => createNotification({ ...notification, userId })));
+};
+
 export const markNotificationAsRead = async (notificationId: string) => {
   const notificationRef = doc(db, 'notifications', notificationId);
   await updateDoc(notificationRef, {
@@ -310,13 +320,14 @@ export const cancelRequest = async (requestId: string) => {
     updatedAt: now,
   });
 
-  // If the request was approved, create a notification for the manager
-  if (request.status === 'approved' && request.managerId) {
-    await createNotification({
-      userId: request.managerId,
+  // If the request was approved, let the managers know
+  if (request.status === 'approved') {
+    await notifyManagers({
       title: 'Request Cancelled',
       message: `A ${request.type} request has been cancelled by the employee`,
-      relatedRequestId: requestId
-    });
+      relatedRequestId: requestId,
+      kind: 'request_cancelled',
+      params: { type: request.type, date: startDate.toDate().toLocaleDateString('he-IL') },
+    }, request.employeeId);
   }
 };

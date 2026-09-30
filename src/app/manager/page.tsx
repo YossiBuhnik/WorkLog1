@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { notificationDate } from '@/lib/notifications';
+import { requestTypeKey } from '@/lib/firebase/reports';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { getRequestsByManager, updateRequestStatus, createNotification, getDocuments } from '@/lib/firebase/firebaseUtils';
@@ -59,7 +61,9 @@ export default function ManagerDashboard() {
           userId: request.employeeId,
           title: t(`status.${status}`),
           message: t(`request.status.updated.${request.type}`).replace('{status}', statusText),
-          relatedRequestId: requestId
+          relatedRequestId: requestId,
+          kind: 'request_status',
+          params: { type: request.type, status, date: notificationDate(request.startDate.toDate()) },
         });
       }
 
@@ -104,7 +108,7 @@ export default function ManagerDashboard() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      {t(request.type === 'extra_shift' ? 'extra.shift' : 'vacation')}
+                      {t(requestTypeKey(request.type))}
                     </span>
                     <p className="mt-1 text-sm font-medium text-gray-900">
                       {employee?.displayName || employee?.email || t('unknown.employee')}

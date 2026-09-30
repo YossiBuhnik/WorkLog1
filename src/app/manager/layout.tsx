@@ -4,14 +4,26 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { usePendingRequests } from '@/lib/hooks/usePendingRequests';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function ManagerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const authState = useAuth();
+  const { user } = authState;
+
+  // Only users with the manager role may use this area
+  const { loading, hasRole } = authState;
+  const router = useRouter();
+  const allowed = !!user && hasRole('manager');
+  useEffect(() => {
+    if (loading) return;
+    if (!user) router.replace('/auth/login');
+    else if (!hasRole('manager')) router.replace('/');
+  }, [loading, user, hasRole, router]);
   const pendingCount = usePendingRequests(user?.id);
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -21,6 +33,14 @@ export default function ManagerLayout({
       ? 'nav-link-active'
       : 'nav-link';
   };
+
+  if (!allowed) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

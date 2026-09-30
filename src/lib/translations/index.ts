@@ -2,7 +2,9 @@ type Language = 'en' | 'he' | 'ar';
 
 interface Translations {
   [key: string]: {
-    [key in Language]: string;
+    en: string;
+    he: string;
+    ar?: string; // optional: falls back to English when missing
   };
 }
 
@@ -986,5 +988,104 @@ export const translations: Translations = {
     en: 'Failed to submit request. Please try again.',
     he: 'נכשל בשליחת הבקשה. אנא נסה שוב.',
     ar: 'فشل في إرسال الطلب. حاول مرة أخرى.'
-  }
-}; 
+  },
+
+  // Attachments (English + Hebrew only; Arabic falls back to English)
+  'attachments.add': { en: 'Attach files', he: 'צירוף קבצים' },
+  'attachments.processing': { en: 'Processing...', he: 'מעבד...' },
+  'attachments.hint': { en: 'PDF or images, up to {max} files. Large photos are shrunk automatically.', he: 'PDF או תמונות, עד {max} קבצים. תמונות גדולות מוקטנות אוטומטית.' },
+  'attachments.remove': { en: 'Remove file', he: 'הסרת קובץ' },
+  'attachments.view': { en: 'View', he: 'צפייה' },
+  'attachments.download': { en: 'Download', he: 'הורדה' },
+  'attachments.none': { en: 'No files attached', he: 'לא צורפו קבצים' },
+  'attachments.error.type': { en: 'only PDF or image files are allowed', he: 'ניתן לצרף רק קבצי PDF או תמונות' },
+  'attachments.error.size': { en: 'file is too large (max ~1MB). Try scanning at a lower resolution.', he: 'הקובץ גדול מדי (עד כ-1MB). נסו לסרוק ברזולוציה נמוכה יותר.' },
+  'attachments.error.unreadable': { en: 'the image could not be read', he: 'לא ניתן לקרוא את התמונה' },
+  'attachments.error.generic': { en: 'could not add the file', he: 'לא ניתן לצרף את הקובץ' },
+  'attachments.error.count': { en: 'You can attach up to {max} files', he: 'ניתן לצרף עד {max} קבצים' },
+  'attachments.error.load': { en: 'Could not load the files', he: 'לא ניתן לטעון את הקבצים' },
+
+  // Sick leave / reserve duty reports (English + Hebrew only)
+  'sick.leave': { en: 'Sick leave', he: 'מחלה' },
+  'reserve.duty': { en: 'Reserve duty', he: 'מילואים' },
+  'new.sick.leave': { en: 'Report sick leave', he: 'דיווח מחלה' },
+  'new.reserve.duty': { en: 'Report reserve duty', he: 'דיווח מילואים' },
+  'status.cancelled': { en: 'Cancelled', he: 'בוטל' },
+  'status.submitted': { en: 'Received', he: 'התקבל' },
+  'status.handled': { en: 'Handled', he: 'טופל' },
+  'missing.document': { en: 'Missing document', he: 'חסר מסמך' },
+  'report.no.approval.needed': { en: 'No manager approval needed - the report goes straight to the office.', he: 'לא נדרש אישור מנהל - הדיווח עובר ישירות למשרד.' },
+  'report.document.sick': { en: "Doctor's sick note", he: 'אישור מחלה מהרופא' },
+  'report.document.reserve': { en: 'Reserve duty form (3010)', he: 'טופס מילואים (3010)' },
+  'report.document.later': { en: 'No file yet? You can submit now and add it later - until then the report is marked "Missing document".', he: 'אין עדיין קובץ? אפשר לשלוח עכשיו ולצרף אחר כך - עד אז הדיווח יסומן "חסר מסמך".' },
+  'report.submitted': { en: 'Report submitted to the office', he: 'הדיווח נשלח למשרד' },
+  'report.submitted.missing.document': { en: 'Report submitted. Remember to attach the document.', he: 'הדיווח נשלח. אל תשכחו לצרף את המסמך.' },
+  'report.upload.failed': { en: 'The report was saved, but uploading the file failed. Please try adding it again from the report page.', he: 'הדיווח נשמר, אך העלאת הקובץ נכשלה. נסו לצרף אותו שוב מדף הדיווח.' },
+  'report.details.and.documents': { en: 'Details & documents', he: 'פרטים ומסמכים' },
+  'report.not.found': { en: 'Report not found.', he: 'הדיווח לא נמצא.' },
+  'back.to.my.requests': { en: '← Back to my requests', he: '→ חזרה לבקשות שלי' },
+  'report.files.added': { en: 'Files added', he: 'הקבצים צורפו' },
+  'report.updated': { en: 'Report updated', he: 'הדיווח עודכן' },
+  'report.update.failed': { en: 'Update failed', he: 'העדכון נכשל' },
+  'report.confirm.cancel': { en: 'Cancel this report?', he: 'לבטל את הדיווח?' },
+  'report.edit.dates': { en: 'Edit dates', he: 'עריכת תאריכים' },
+  'report.locked.handled': { en: 'The office has handled this report, so it can no longer be changed.', he: 'המשרד טיפל בדיווח, ולכן לא ניתן לשנות אותו יותר.' },
+  'report.upload.files': { en: 'Upload files', he: 'העלאת הקבצים' },
+  'report.cancel': { en: 'Cancel report', he: 'ביטול הדיווח' },
+  'report.mark.handled': { en: 'Mark as handled', he: 'סימון כטופל' },
+  'report.reopen': { en: 'Reopen', he: 'החזרה לטיפול' },
+  'error.end.before.start': { en: 'End date is before start date', he: 'תאריך הסיום לפני תאריך ההתחלה' },
+  'attachments.confirm.delete': { en: 'Delete this file?', he: 'למחוק את הקובץ?' },
+  'office.documents.nav': { en: 'Reports & documents', he: 'דיווחים ומסמכים' },
+  'office.documents.title': { en: 'Reports & documents', he: 'דיווחים ומסמכים' },
+  'office.documents.subtitle': { en: 'Sick leave, reserve duty and petty cash, with their attached documents', he: 'דיווחי מחלה ומילואים ובקשות קופה קטנה, והמסמכים שצורפו אליהם' },
+  'office.documents.empty': { en: 'No reports match the selected filters', he: 'אין דיווחים שתואמים לסינון' },
+  'filter.all.types': { en: 'All types', he: 'כל הסוגים' },
+  'filter.all.employees': { en: 'All employees', he: 'כל העובדים' },
+  'filter.all.statuses': { en: 'All statuses', he: 'כל הסטטוסים' },
+  'dates': { en: 'Dates', he: 'תאריכים' },
+  'days': { en: 'Days', he: 'ימים' },
+  'documents': { en: 'Documents', he: 'מסמכים' },
+  'details': { en: 'Details', he: 'פרטים' },
+  'close': { en: 'Close', he: 'סגירה' },
+
+  // Petty cash (English + Hebrew only)
+  'petty.cash': { en: 'Petty cash', he: 'קופה קטנה' },
+  'new.petty.cash': { en: 'Petty cash request', he: 'בקשת קופה קטנה' },
+  'status.paid': { en: 'Paid', he: 'שולם' },
+  'petty.cash.description': { en: 'What was purchased', he: 'עבור מה' },
+  'petty.cash.description.placeholder': { en: 'e.g. office supplies, fuel, parking', he: 'לדוגמה: ציוד משרדי, דלק, חניה' },
+  'petty.cash.expense.date': { en: 'Expense date', he: 'תאריך ההוצאה' },
+  'petty.cash.receipts': { en: 'Receipts', he: 'חשבוניות' },
+  'petty.cash.add.receipt': { en: 'Add receipt', he: 'הוספת חשבונית' },
+  'petty.cash.receipts.hint': { en: 'Photo or PDF of each receipt, with its amount. Up to {max} receipts.', he: 'צילום או PDF של כל חשבונית, עם הסכום שלה. עד {max} חשבוניות.' },
+  'petty.cash.amount': { en: 'Amount', he: 'סכום' },
+  'petty.cash.total': { en: 'Total', he: 'סה"כ' },
+  'petty.cash.error.no.receipts': { en: 'Please attach at least one receipt', he: 'יש לצרף לפחות חשבונית אחת' },
+  'petty.cash.error.amount': { en: 'Please enter a valid amount for each receipt (e.g. 125.50)', he: 'יש להזין סכום תקין לכל חשבונית (לדוגמה 125.50)' },
+  'petty.cash.submitted': { en: 'Petty cash request sent to the office', he: 'בקשת הקופה הקטנה נשלחה למשרד' },
+  'petty.cash.mark.paid': { en: 'Mark as paid', he: 'סימון כשולם' },
+  'petty.cash.locked.paid': { en: 'The office has paid this request, so it can no longer be changed.', he: 'המשרד שילם את הבקשה, ולכן לא ניתן לשנות אותה יותר.' },
+  'optional': { en: 'optional', he: 'לא חובה' },
+
+  // Notifications (English + Hebrew only)
+  'notifications.empty': { en: 'No notifications', he: 'אין התראות' },
+  'notifications.mark.all.read': { en: 'Mark all as read', he: 'סימון הכול כנקרא' },
+  'notif.request.status': { en: 'Your {type} request for {date} was {status}', he: 'בקשת {type} שלך ל-{date}: {status}' },
+  'notif.request.submitted': { en: 'New request awaiting approval', he: 'בקשה חדשה ממתינה לאישור' },
+  'notif.request.cancelled': { en: 'An approved request was cancelled', he: 'בקשה מאושרת בוטלה' },
+
+  // Excel report (English + Hebrew only)
+  'export.excel': { en: 'Export to Excel', he: 'ייצוא לאקסל' },
+  'report.excel.exporting': { en: 'Preparing...', he: 'מכין...' },
+  'report.excel.error': { en: 'Could not create the Excel file', he: 'לא ניתן היה ליצור את קובץ האקסל' },
+  'report.excel.title': { en: 'Monthly report', he: 'דוח חודשי' },
+  'report.excel.summary': { en: 'Summary', he: 'סיכום' },
+  'report.excel.details': { en: 'Details', he: 'פירוט' },
+  'report.excel.project.description': { en: 'Project / description', he: 'פרויקט / תיאור' },
+  'report.sick.days': { en: 'Sick days', he: 'ימי מחלה' },
+  'report.reserve.days': { en: 'Reserve duty days', he: 'ימי מילואים' },
+  'report.petty.cash.total': { en: 'Petty cash (₪)', he: 'קופה קטנה (₪)' },
+  'report.petty.cash.unpaid': { en: 'Of which unpaid (₪)', he: 'מתוכם טרם שולם (₪)' },
+  'report.missing.documents': { en: 'Missing documents', he: 'מסמכים חסרים' },
+};

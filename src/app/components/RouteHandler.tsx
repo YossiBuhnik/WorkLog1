@@ -31,8 +31,15 @@ export default function RouteHandler() {
             router.push('/office'); // Fallback to office view even on mobile
           }
         } else {
-          // Desktop users always go to office view
-          router.push('/office');
+          // Desktop: each user goes to the area of their role
+          // (previously everyone went to the office view, including managers and employees)
+          if (user.roles?.includes('office')) {
+            router.push('/office');
+          } else if (user.roles?.includes('manager')) {
+            router.push('/manager');
+          } else {
+            router.push('/employee');
+          }
         }
       }
     } catch (err) {

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Logo from './Logo';
 import LanguageSelector from './LanguageSelector';
+import NotificationBell from './NotificationBell';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 
 export default function Header() {
@@ -33,6 +34,7 @@ export default function Header() {
           </div>
 
           <div className="flex items-center space-x-4">
+            <NotificationBell />
             {user.roles?.includes('manager') && (
               <Link href="/manager" className="nav-link">
                 {t('manager.dashboard')}

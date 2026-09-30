@@ -12,13 +12,17 @@ export interface User {
 
 export type UserRole = 'employee' | 'manager' | 'office'; 
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+// 'submitted' / 'handled' / 'paid' are used by requests that need no manager approval
+// (sick, reserve duty, petty cash - petty cash ends as 'paid')
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'submitted' | 'handled' | 'paid';
+
+export type RequestType = 'vacation' | 'extra_shift' | 'sick' | 'reserve' | 'petty_cash';
 
 export interface Request {
   id: string;
   employeeId: string;
   managerId: string;
-  type: 'vacation' | 'extra_shift';
+  type: RequestType;
   status: RequestStatus;
   startDate: any; // Using 'any' for Firestore Timestamp compatibility
   endDate?: any;
@@ -26,6 +30,9 @@ export interface Request {
   updatedAt?: any;
   projectName?: string;
   approvedBy?: string | null;
+  attachmentCount?: number; // sick / reserve / petty cash: number of attached files (0 = missing document)
+  totalAmount?: number; // petty cash: sum of all receipts (ILS)
+  description?: string; // petty cash: what the money was spent on
 }
 
 export interface Notification {
@@ -36,6 +43,10 @@ export interface Notification {
   read?: boolean;
   createdAt?: any;
   relatedRequestId?: string;
+  // When set, the text is built from translations at display time (see src/lib/notifications.ts);
+  // title/message remain as a fallback for older notifications.
+  kind?: 'request_status' | 'request_submitted' | 'report_submitted' | 'request_cancelled';
+  params?: Record<string, string>;
 }
 
 export interface WorkLog {

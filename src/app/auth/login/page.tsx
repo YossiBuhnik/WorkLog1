@@ -78,8 +78,8 @@ export default function LoginPage() {
     }
   };
 
-  // Show debug information in development
-  if (process.env.NODE_ENV !== 'production' && debugInfo) {
+  // Show debug information in development (only when NEXT_PUBLIC_SHOW_LOGIN_DEBUG=true)
+  if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_SHOW_LOGIN_DEBUG === 'true' && debugInfo) {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-lg">
