@@ -9,6 +9,7 @@ import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useLanguage } from '@/lib/contexts/LanguageContext';
 import { updateUser } from '@/lib/firebase/firebaseUtils';
 import { initialsOf } from '@/lib/initials';
+import InstallAppCard from '../components/InstallAppCard';
 
 const LANGUAGES = [
   { code: 'he', label: 'עברית' },
@@ -125,6 +126,8 @@ export default function ProfilePage() {
             {isSubmitting ? t('saving') : t('profile.save')}
           </button>
         </form>
+
+        <InstallAppCard />
 
         <div className="panel p-5 sm:p-7">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 mb-3">

@@ -9,6 +9,7 @@ import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useLanguage } from '@/lib/contexts/LanguageContext';
+import InstallAppCard from '../../components/InstallAppCard';
 
 const LANGUAGES = [
   { code: 'he', label: 'עברית' },
@@ -146,6 +147,9 @@ export default function LoginPage() {
             <Link href="/auth/register" className="font-medium text-brand-blue hover:text-brand-navy">
               {t('login.register')}
             </Link>
+          </p>
+          <p className="mt-4 text-center">
+            <InstallAppCard compact />
           </p>
         </div>
       </div>

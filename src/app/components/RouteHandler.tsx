@@ -3,11 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 
 export default function RouteHandler() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
+  // A user whose roles were all removed has no area to go to (would otherwise redirect in a loop)
+  const noRoles = !!user && !['employee', 'manager', 'office'].some((r) => user.roles?.includes(r));
 
   useEffect(() => {
     try {
@@ -17,7 +21,7 @@ export default function RouteHandler() {
         return;
       }
 
-      if (!loading && user) {
+      if (!loading && user && !noRoles) {
         console.log('User found:', user.email);
         // Check if the user is accessing from a mobile device
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -46,13 +50,24 @@ export default function RouteHandler() {
       console.error('Error in RouteHandler:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, noRoles]);
 
   // Show loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (noRoles) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] p-4">
+        <div className="panel max-w-sm p-8 text-center">
+          <p className="text-lg font-semibold text-slate-900">{t('no.roles.title')}</p>
+          <p className="mt-2 text-slate-500">{t('no.roles.text')}</p>
+        </div>
       </div>
     );
   }

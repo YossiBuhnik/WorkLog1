@@ -44,7 +44,6 @@ export default function OfficeLayout({
           { href: '/office/employees', label: t('employees') },
           { href: '/office/reports', label: t('reports') },
           { href: '/office/documents', label: t('office.documents.nav') },
-          { href: '/office/settings', label: t('settings') },
         ]}
       />
 

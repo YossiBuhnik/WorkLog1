@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
+import PwaRegister from './components/PwaRegister';
 import { LanguageProvider } from '@/lib/contexts/LanguageContext';
 
 // Rubik reads well in Hebrew, Arabic and English
@@ -13,12 +14,22 @@ const rubik = Rubik({ subsets: ['latin', 'hebrew', 'arabic'], variable: '--font-
 export const metadata = {
   title: 'TSK - יומן עבודה',
   description: 'Manage work shifts and requests for TSK construction company',
+  icons: {
+    icon: [
+      { url: '/icons/favicon-48.png', sizes: '48x48', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
+  },
+  // Installed on iPhone: opens full-screen like an app, named "TSK" under the icon
+  appleWebApp: { capable: true, title: 'TSK', statusBarStyle: 'default' },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#254E7B',
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -28,9 +39,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="he" dir="rtl">
-      <head>
-        <link rel="icon" href="/images/tsk-logo.png" />
-      </head>
       <body className={`${rubik.variable} font-sans antialiased`}>
         <LanguageProvider>
           <AuthProvider>
@@ -60,6 +68,7 @@ export default function RootLayout({
                 />
                 {children}
                 <BottomNav />
+                <PwaRegister />
               </div>
             </NotificationProvider>
           </AuthProvider>
