@@ -90,6 +90,26 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Vacation quota per employee per year (days available, incl. carry-over) - NEW
+    // Document id: <userId>_<year>. Only the office sets it; the employee reads only their own.
+    match /vacationQuotas/{quotaId} {
+      allow read: if request.auth != null && (
+        quotaId.matches(request.auth.uid + '_[0-9]{4}') ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office', 'manager'])
+      );
+      allow create, update: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office'])
+        && request.resource.data.keys().hasOnly(['userId', 'year', 'days', 'updatedAt', 'updatedBy'])
+        && request.resource.data.userId is string
+        && request.resource.data.year is int
+        && quotaId == request.resource.data.userId + '_' + string(request.resource.data.year)
+        && request.resource.data.days is number
+        && request.resource.data.days >= 0
+        && request.resource.data.days <= 365;
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['office']);
+    }
+
     // WorkLogs collection
     match /workLogs/{logId} {
       allow read: if request.auth != null;

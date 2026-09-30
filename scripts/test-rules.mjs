@@ -186,5 +186,25 @@ const newUserDoc = (roles) => ({ id: newbie.uid, displayName: 'New', email: 'n@t
 await expect('New registration creates itself as office', false, () => setDoc(doc(newbie.db, 'users', newbie.uid), newUserDoc(['office'])));
 await expect('New registration creates itself as employee', true, () => setDoc(doc(newbie.db, 'users', newbie.uid), newUserDoc(['employee'])));
 
+// ======================================================================
+section('Vacation quotas - set by the office, each employee sees only their own');
+const Q = (db, uid, year = 2026) => doc(db, 'vacationQuotas', `${uid}_${year}`);
+const quota = (uid, days, year = 2026) => ({ userId: uid, year, days, updatedAt: now(), updatedBy: office.uid });
+await expect('Office sets a quota for an employee', true, () => setDoc(Q(office.db, dana.uid), quota(dana.uid, 18)));
+await expect('Office changes the quota', true, () => setDoc(Q(office.db, dana.uid), quota(dana.uid, 20.5)));
+await expect('Employee reads her own quota', true, () => getDoc(Q(dana.db, dana.uid)));
+await expect('Employee reads her own quota that was never set', true, () => getDoc(Q(dana.db, dana.uid, 2030)));
+await expect("Employee reads another employee's quota", false, () => getDoc(Q(avi.db, dana.uid)));
+await expect('Employee lists all quotas', false, () => getDocs(collection(avi.db, 'vacationQuotas')));
+await expect('Employee raises her own quota', false, () => setDoc(Q(dana.db, dana.uid), quota(dana.uid, 99)));
+await expect('Employee deletes her own quota', false, () => deleteDoc(Q(dana.db, dana.uid)));
+await expect('Manager reads a quota', true, () => getDoc(Q(manager.db, dana.uid)));
+await expect('Manager sets a quota', false, () => setDoc(Q(manager.db, avi.uid), quota(avi.uid, 30)));
+await expect('Office lists the quotas of a year', true, () => getDocs(query(collection(office.db, 'vacationQuotas'), where('year', '==', 2026))));
+await expect('Office saves a quota under the wrong id', false, () => setDoc(Q(office.db, avi.uid), quota(dana.uid, 10)));
+await expect('Office saves a negative quota', false, () => setDoc(Q(office.db, avi.uid), quota(avi.uid, -1)));
+await expect('Office saves a quota with extra fields', false, () => setDoc(Q(office.db, avi.uid), { ...quota(avi.uid, 10), roles: ['office'] }));
+await expect('Office removes a quota', true, () => deleteDoc(Q(office.db, dana.uid)));
+
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

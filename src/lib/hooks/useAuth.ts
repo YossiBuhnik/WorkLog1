@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react';
-import { User as FirebaseUser, signInWithEmailAndPassword, signInWithPhoneNumber, signOut, RecaptchaVerifier } from 'firebase/auth';
+import { User as FirebaseUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../firebase/firebase';
 import { getUser } from '../firebase/firebaseUtils';
 import { User, UserRole } from '../types';
-
-declare global {
-  interface Window {
-    recaptchaVerifier: RecaptchaVerifier;
-  }
-}
 
 interface UseAuthReturn {
   user: User | null;
@@ -17,7 +11,6 @@ interface UseAuthReturn {
   error: string | null;
   hasRole: (role: UserRole) => boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signInWithPhone: (phoneNumber: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -73,20 +66,6 @@ export const useAuth = (): UseAuthReturn => {
     }
   };
 
-  const signInWithPhone = async (phoneNumber: string) => {
-    try {
-      setError(null);
-      // Note: This requires additional setup with Firebase phone auth
-      // and handling of verification code
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
-      // Handle confirmation result...
-    } catch (err) {
-      console.error('Error signing in with phone:', err);
-      setError('Invalid phone number');
-      throw err;
-    }
-  };
-
   const logout = async () => {
     try {
       setError(null);
@@ -105,7 +84,6 @@ export const useAuth = (): UseAuthReturn => {
     error,
     hasRole,
     signInWithEmail,
-    signInWithPhone,
     logout,
   };
 };

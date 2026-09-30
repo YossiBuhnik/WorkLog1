@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import { CalendarDays, Users, Clock, CheckCircle } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
+import { TYPE_META, STATUS_META } from '@/lib/requestTypeMeta';
 
 interface DashboardStats {
   totalEmployees: number;
@@ -22,6 +24,7 @@ export default function OfficeDashboard() {
   const router = useRouter();
   const { user, loading, hasRole } = useAuth();
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [stats, setStats] = useState<DashboardStats>({
     totalEmployees: 0,
@@ -149,8 +152,11 @@ export default function OfficeDashboard() {
 
   if (loading || loadingStats) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      <div className="max-w-7xl mx-auto space-y-4 animate-pulse">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => <div key={i} className="h-28 rounded-3xl bg-slate-200/70" />)}
+        </div>
+        <div className="h-80 rounded-3xl bg-slate-200/70" />
       </div>
     );
   }
@@ -160,130 +166,90 @@ export default function OfficeDashboard() {
     t('month.may'), t('month.june'), t('month.july'), t('month.august'),
     t('month.september'), t('month.october'), t('month.november'), t('month.december')
   ];
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar' : 'en-GB';
+  const fmt = (d: Date) => d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+
+  const cards = [
+    { icon: Users, value: stats.totalEmployees, label: t('total.employees'), badge: 'bg-brand-blue-light text-brand-navy' },
+    { icon: Clock, value: stats.activeRequests, label: t('active.requests'), badge: 'bg-amber-50 text-amber-700' },
+    { icon: CheckCircle, value: stats.approvedExtraShiftsThisMonth, label: t('approved.extra.shifts'), badge: 'bg-emerald-50 text-emerald-700' },
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('office.dashboard')}</h1>
-        <p className="text-gray-500">{t('dashboard.overview')}</p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-slate-500">{t('dashboard.overview')}</p>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+          className="select-input"
+          aria-label={t('select.month')}
+        >
+          {months.map((month, index) => (
+            <option key={index} value={index}>{month}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Users className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    {t('total.employees')}
-                  </dt>
-                  <dd className="text-lg font-semibold text-gray-900">
-                    {stats.totalEmployees}
-                  </dd>
-                </dl>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.label} className="panel p-5 flex items-center gap-4">
+              <span className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center ${c.badge}`}>
+                <Icon className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="text-3xl font-bold text-slate-900 leading-none">{c.value}</p>
+                <p className="mt-1 text-sm text-slate-500">{c.label}</p>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Clock className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    {t('active.requests')}
-                  </dt>
-                  <dd className="text-lg font-semibold text-gray-900">
-                    {stats.activeRequests}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <CheckCircle className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    {t('approved.extra.shifts')}
-                  </dt>
-                  <dd className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900">
-                      {stats.approvedExtraShiftsThisMonth}
-                    </span>
-                    <select
-                      value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                      className="text-sm border-gray-300 rounded-md"
-                    >
-                      {months.map((month, index) => (
-                        <option key={index} value={index}>
-                          {month}
-                        </option>
-                      ))}
-                    </select>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      <div className="mt-8">
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <div className="px-4 py-5 sm:px-6">
-            <h2 className="text-lg leading-6 font-medium text-gray-900">
-              {t('recent.activity')} - {months[selectedMonth]}
-            </h2>
-          </div>
-          {recentActivity.length > 0 ? (
-            <div className="p-6">
-              <ul role="list" className="divide-y divide-gray-200">
-                {recentActivity.map((request) => (
-                  <li key={request.id} className="py-4">
-                    <div className="flex space-x-3">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium">
-                            {t(requestTypeKey(request.type))} - {request.employeeName || 'Unknown'}
-                          </h3>
-                          <p className="text-sm text-gray-500">{`Request Date: ${request.createdAt.toDate().toLocaleDateString()}`}</p>
-                        </div>
-                        <p className="text-sm text-gray-500">
-                          {`Status: ${request.status}`}{request.status === 'approved' && ` by ${request.approvedByName || 'N/A'}`}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {(request.type === 'extra_shift' || request.type === 'petty_cash')
-                            ? `Shift Date: ${request.startDate.toDate().toLocaleDateString()}`
-                            : `Dates: ${request.startDate.toDate().toLocaleDateString()} - ${request.endDate?.toDate().toLocaleDateString()}`}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-center text-gray-500">
-              <p>{t('no.activity.month')}</p>
-            </div>
-          )}
-        </div>
+      <div className="panel overflow-hidden">
+        <h2 className="px-5 sm:px-6 pt-5 pb-3 text-lg font-semibold text-slate-900">
+          {t('recent.activity')} · {months[selectedMonth]}
+        </h2>
+        {recentActivity.length > 0 ? (
+          <ul className="divide-y divide-slate-100">
+            {recentActivity.map((request) => {
+              const meta = TYPE_META[request.type] || TYPE_META.extra_shift;
+              const status = STATUS_META[request.status] || STATUS_META.pending;
+              const Icon = meta.icon;
+              const StatusIcon = status.icon;
+              const start = request.startDate.toDate();
+              const end = request.endDate?.toDate();
+              return (
+                <li key={request.id} className="px-5 sm:px-6 py-3.5 flex items-center gap-3">
+                  <span className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center ${meta.badge}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-900 truncate">
+                      {request.employeeName || t('unknown.employee')}
+                      <span className="text-slate-400 font-normal"> · {t(requestTypeKey(request.type))}</span>
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {end && end.toDateString() !== start.toDateString() ? `${fmt(start)} – ${fmt(end)}` : fmt(start)}
+                      {request.status === 'approved' && request.approvedByName && (
+                        <span> · {t('office.approved.by').replace('{name}', request.approvedByName)}</span>
+                      )}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${status.pill}`}>
+                    <StatusIcon className="h-3.5 w-3.5" />
+                    {t(`status.${request.status}`)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-6 py-10 text-center text-slate-500">{t('no.activity.month')}</p>
+        )}
       </div>
     </div>
   );
-} 
+}

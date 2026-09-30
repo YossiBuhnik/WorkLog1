@@ -5,7 +5,8 @@ import { canSubmitRequests } from '@/lib/roles';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
-import { createRequest, getDocuments, notifyManagers } from '@/lib/firebase/firebaseUtils';
+import { createRequest, getDocuments, notifyManagers, getRequestsByEmployee } from '@/lib/firebase/firebaseUtils';
+import { getVacationQuota, usedVacationDays } from '@/lib/firebase/vacationQuotas';
 import { notificationDate } from '@/lib/notifications';
 import { User } from '@/lib/types';
 import toast from 'react-hot-toast';
@@ -61,6 +62,18 @@ function NewRequestContent() {
   const [endDate, setEndDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
+  // Vacation days left this year (null when the office has not set a quota)
+  const [vacationLeft, setVacationLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user || requestType !== 'vacation' || vacationLeft !== null) return;
+    const year = new Date().getFullYear();
+    Promise.all([getVacationQuota(user.id, year), getRequestsByEmployee(user.id)])
+      .then(([quota, mine]) => {
+        if (quota !== null) setVacationLeft(quota - usedVacationDays(mine, user.id, year));
+      })
+      .catch(() => setVacationLeft(null));
+  }, [user, requestType, vacationLeft]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -407,6 +420,14 @@ function NewRequestContent() {
           <p className="-mt-2 inline-flex items-center gap-2 rounded-full bg-brand-blue-light px-3 py-1 text-sm font-medium text-brand-navy">
             <CalendarDays className="h-4 w-4" />
             {workdays === 0 ? t('wizard.no.workdays') : workdays === 1 ? t('wizard.one.day') : t('wizard.n.days').replace('{n}', String(workdays))}
+          </p>
+        )}
+
+        {requestType === 'vacation' && workdays !== null && workdays > 0 && vacationLeft !== null && (
+          <p className={`-mt-2 text-sm ${vacationLeft - workdays < 0 ? 'text-amber-700 font-medium' : 'text-slate-500'}`}>
+            {vacationLeft - workdays < 0
+              ? t('wizard.balance.over').replace('{n}', String(Math.round((workdays - vacationLeft) * 10) / 10))
+              : t('wizard.balance.after').replace('{n}', String(Math.round((vacationLeft - workdays) * 10) / 10))}
           </p>
         )}
 

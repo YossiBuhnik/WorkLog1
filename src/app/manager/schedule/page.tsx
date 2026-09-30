@@ -8,6 +8,8 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Request, User, RequestType } from '@/lib/types';
 import toast from 'react-hot-toast';
+import { useLanguage } from '@/lib/contexts/LanguageContext';
+import { TYPE_META } from '@/lib/requestTypeMeta';
 
 interface ScheduleItem {
   employeeId: string;
@@ -21,6 +23,7 @@ interface ScheduleItem {
 export default function Schedule() {
   const { user, loading } = useAuth();
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -55,7 +58,7 @@ export default function Schedule() {
         // Combine requests with employee names
         const schedule = requests.map(request => ({
           employeeId: request.employeeId,
-          employeeName: employees.get(request.employeeId)?.name || t('unknown.employee'),
+          employeeName: employees.get(request.employeeId)?.displayName || (employees.get(request.employeeId) as any)?.name || t('unknown.employee'),
           type: request.type,
           startDate: request.startDate.toDate(),
           endDate: request.endDate ? request.endDate.toDate() : undefined,
@@ -83,73 +86,60 @@ export default function Schedule() {
 
   if (loading || loadingSchedule) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="max-w-3xl mx-auto space-y-3 animate-pulse">
+        {[0, 1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-slate-200/70" />)}
       </div>
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('employee.schedule')}</h1>
-        <p className="text-gray-500">{t('view.approved.schedule')}</p>
-      </div>
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar' : 'en-GB';
+  const fmt = (d: Date) => d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+  const sorted = [...filteredItems].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
-      <div className="mb-6">
-        <label htmlFor="month" className="block text-sm font-medium text-gray-700">
-          {t('select.month')}
-        </label>
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-slate-500">{t('view.approved.schedule')}</p>
         <input
           type="month"
           id="month"
+          aria-label={t('select.month')}
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          className="select-input"
         />
       </div>
 
-      {filteredItems.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">{t('no.scheduled.items')}</p>
-        </div>
+      {sorted.length === 0 ? (
+        <div className="panel p-10 text-center text-slate-500">{t('no.scheduled.items')}</div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {filteredItems.map((item, index) => (
-              <li key={index} className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {item.employeeName}
-                    </h3>
-                    <div className="mt-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.type === 'extra_shift'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {t(requestTypeKey(item.type))}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    <p>{t('start.date')}: {item.startDate.toLocaleDateString()}</p>
-                    {item.endDate && (
-                      <p>{t('end.date')}: {item.endDate.toLocaleDateString()}</p>
-                    )}
-                  </div>
+        <ul className="panel divide-y divide-slate-100 overflow-hidden">
+          {sorted.map((item, index) => {
+            const meta = TYPE_META[item.type] || TYPE_META.extra_shift;
+            const Icon = meta.icon;
+            return (
+              <li key={index} className="px-4 sm:px-5 py-3.5 flex items-center gap-3">
+                <span className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center ${meta.badge}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-slate-900 truncate">
+                    {item.employeeName}
+                    <span className="text-slate-400 font-normal"> · {t(requestTypeKey(item.type))}</span>
+                  </p>
+                  {item.projectName && <p className="text-sm text-slate-500 truncate" dir="auto">{item.projectName}</p>}
                 </div>
-                {item.projectName && (
-                  <div className="mt-2 text-sm text-gray-500">
-                    {t('project')}: {item.projectName}
-                  </div>
-                )}
+                <p className="shrink-0 text-sm font-medium text-slate-700 text-end">
+                  {fmt(item.startDate)}
+                  {item.endDate && item.endDate.toDateString() !== item.startDate.toDateString() && (
+                    <span className="block text-xs font-normal text-slate-500">– {fmt(item.endDate)}</span>
+                  )}
+                </p>
               </li>
-            ))}
-          </ul>
-        </div>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
-} 
+}

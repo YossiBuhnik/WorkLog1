@@ -15,8 +15,10 @@ import { requestTypeKey, isMissingDocument } from '@/lib/firebase/reports';
 import { formatAmount } from '@/lib/firebase/attachments';
 import { useLanguage } from '@/lib/contexts/LanguageContext';
 import type { SummaryRow, DetailRow } from '@/lib/excelReport';
+import { getVacationQuotasForYear, usedVacationDays } from '@/lib/firebase/vacationQuotas';
 
 interface EmployeeStats {
+  id: string;
   name: string;
   totalRequests: number;
   extraShifts: {
@@ -34,6 +36,8 @@ interface EmployeeStats {
   pettyCashTotal: number;
   pettyCashUnpaid: number;
   missingDocuments: number;
+  // Vacation days left in the selected year (null when the office set no quota)
+  vacationLeft: number | null;
 }
 
 type RequestStats = {
@@ -55,11 +59,7 @@ type RequestStats = {
   dateFilter: { start: Date; end: Date };
 };
 
-console.log('REPORTS PAGE LOADED - OUTSIDE COMPONENT');
-
 export default function Reports() {
-  console.log('REPORTS COMPONENT RENDERING - TOP');
-  
   const { user, loading } = useAuth();
   const { t } = useTranslation();
   const { dir } = useLanguage();
@@ -71,16 +71,13 @@ export default function Reports() {
   const [selectedView, setSelectedView] = useState<'month' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'trends' | 'employees'>('employees');
 
-  useEffect(() => {
-    console.log('REPORTS COMPONENT useEffect triggered');
-  }, []);
-
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const [requestsSnapshot, usersSnapshot] = await Promise.all([
+      const [requestsSnapshot, usersSnapshot, quotas] = await Promise.all([
         getDocs(collection(db, 'requests')),
-        getDocs(collection(db, 'users'))
+        getDocs(collection(db, 'users')),
+        getVacationQuotasForYear(selectedYear).catch(() => new Map<string, number>()),
       ]);
 
       // Workday / holiday calculation lives in src/lib/workdays.ts
@@ -196,6 +193,7 @@ export default function Reports() {
           const missingDocuments = monthlyFilteredRequests.filter(isMissingDocument).length;
 
           return {
+            id: employee.id,
             name: employee.displayName || employee.email || 'Unknown',
             totalRequests: monthlyFilteredRequests.length,
             extraShifts: {
@@ -213,6 +211,9 @@ export default function Reports() {
             pettyCashTotal: Math.round(pettyCashTotal * 100) / 100,
             pettyCashUnpaid: Math.round(pettyCashUnpaid * 100) / 100,
             missingDocuments,
+            vacationLeft: quotas.has(employee.id)
+              ? Math.round((quotas.get(employee.id)! - usedVacationDays(requests, employee.id, selectedYear)) * 10) / 10
+              : null,
           };
         })
       );
@@ -328,8 +329,12 @@ export default function Reports() {
 
   if (loading || loadingStats) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      <div className="max-w-7xl mx-auto space-y-4 animate-pulse">
+        <div className="h-12 rounded-xl bg-slate-200/70" />
+        <div className="grid gap-4 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 rounded-3xl bg-slate-200/70" />)}
+        </div>
+        <div className="h-80 rounded-3xl bg-slate-200/70" />
       </div>
     );
   }
@@ -340,163 +345,111 @@ export default function Reports() {
     t('month.september'), t('month.october'), t('month.november'), t('month.december')
   ];
 
+  const cards = [
+    { value: stats?.totalRequests, label: t('total.requests'), color: 'text-brand-navy' },
+    { value: stats?.approvedRequests, label: t('approved'), color: 'text-emerald-600' },
+    { value: stats?.rejectedRequests, label: t('rejected'), color: 'text-red-600' },
+    { value: stats?.pendingRequests, label: t('pending'), color: 'text-amber-600' },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('reports.and.analytics')}</h1>
-          <p className="text-gray-500">{t('view.statistics')}</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <select
-            value={selectedView}
-            onChange={(e) => setSelectedView(e.target.value as 'month' | 'year')}
-            className="rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-          >
-            <option value="month">{t('this.month')}</option>
-            <option value="year">{t('full.year')}</option>
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-          >
-            {availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-slate-500">{t('view.statistics')}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl bg-slate-200/60 p-1 text-sm">
+            {(['month', 'year'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setSelectedView(v)}
+                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                  selectedView === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t(v === 'month' ? 'this.month' : 'full.year')}
+              </button>
             ))}
-          </select>
+          </div>
           {selectedView === 'month' && (
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-            >
-              {months.map((month, index) => (
-                <option key={month} value={index}>
-                  {month}
-                </option>
-              ))}
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="select-input">
+              {months.map((month, index) => <option key={month} value={index}>{month}</option>)}
             </select>
           )}
-          <button
-            onClick={handleExportExcel}
-            disabled={exporting || !stats}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
-          >
-            <Download className="h-5 w-5" />
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="select-input">
+            {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button onClick={handleExportExcel} disabled={exporting || !stats} className="btn-brand">
+            <Download className="h-4 w-4" />
             {exporting ? t('report.excel.exporting') : t('export.excel')}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-4 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900">{t('total.requests')}</h3>
-          <p className="text-3xl font-bold text-emerald-600">{stats?.totalRequests}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900">{t('approved')}</h3>
-          <p className="text-3xl font-bold text-green-600">{stats?.approvedRequests}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900">{t('rejected')}</h3>
-          <p className="text-3xl font-bold text-red-600">{stats?.rejectedRequests}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900">{t('pending')}</h3>
-          <p className="text-3xl font-bold text-yellow-600">{stats?.pendingRequests}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {cards.map((c) => (
+          <div key={c.label} className="panel p-5">
+            <p className={`text-3xl font-bold leading-none ${c.color}`}>{c.value}</p>
+            <p className="mt-1.5 text-sm text-slate-500">{c.label}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="flex space-x-4 mb-6">
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2 rounded-md ${
-            activeTab === 'employees'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          {t('employee.statistics')}
-        </button>
-        <button
-          onClick={() => setActiveTab('trends')}
-          className={`px-4 py-2 rounded-md ${
-            activeTab === 'trends'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          {t('monthly.trends')}
-        </button>
+      <div className="flex border-b border-slate-200 gap-1">
+        {(['employees', 'trends'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`relative px-4 pb-3 pt-1 text-sm font-medium ${activeTab === tab ? 'text-brand-navy' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {t(tab === 'employees' ? 'employee.statistics' : 'monthly.trends')}
+            {activeTab === tab && <span className="absolute inset-x-2 -bottom-px h-[3px] rounded-t-full bg-brand-blue" />}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'employees' ? (
-        <div className="bg-white p-6 rounded-lg shadow overflow-x-auto">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">{t('employee.statistics')}</h3>
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
+        <div className="panel overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-100">
+            <thead className="bg-slate-50/70">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('employee.name')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('total.extra.shifts')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('extra.shifts.approved')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('extra.shifts.rejected')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('total.vacation.days')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('report.sick.days')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('report.reserve.days')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('petty.cash')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('report.missing.documents')}
-                </th>
+                <th className="th">{t('employee.name')}</th>
+                <th className="th">{t('total.extra.shifts')}</th>
+                <th className="th">{t('extra.shifts.approved')}</th>
+                <th className="th">{t('extra.shifts.rejected')}</th>
+                <th className="th">{t('total.vacation.days')}</th>
+                <th className="th">{t('reports.vacation.left')} {selectedYear}</th>
+                <th className="th">{t('report.sick.days')}</th>
+                <th className="th">{t('report.reserve.days')}</th>
+                <th className="th">{t('petty.cash')}</th>
+                <th className="th">{t('report.missing.documents')}</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100">
               {stats?.employeeStats.map((employee) => (
-                <tr key={employee.name}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {employee.name}
+                <tr key={employee.id} className="hover:bg-slate-50/60">
+                  <td className="td font-medium text-slate-900 whitespace-nowrap">{employee.name}</td>
+                  <td className="td">{employee.extraShifts.total}</td>
+                  <td className="td text-emerald-700">{employee.extraShifts.approved}</td>
+                  <td className="td text-red-600">{employee.extraShifts.rejected}</td>
+                  <td className="td">{employee.vacations.total}</td>
+                  <td className="td">
+                    {employee.vacationLeft === null ? (
+                      <span className="text-slate-300">—</span>
+                    ) : (
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        employee.vacationLeft < 0 ? 'bg-red-50 text-red-700' : employee.vacationLeft <= 3 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
+                      }`}>
+                        {employee.vacationLeft}
+                      </span>
+                    )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {employee.extraShifts.total}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                    {employee.extraShifts.approved}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                    {employee.extraShifts.rejected}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {employee.vacations.total}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {employee.sickDays}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {employee.reserveDays}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {employee.pettyCashTotal ? formatAmount(employee.pettyCashTotal) : 0}
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${employee.missingDocuments ? 'text-amber-700 font-medium' : 'text-gray-500'}`}>
-                    {employee.missingDocuments}
+                  <td className="td">{employee.sickDays}</td>
+                  <td className="td">{employee.reserveDays}</td>
+                  <td className="td whitespace-nowrap">{employee.pettyCashTotal ? formatAmount(employee.pettyCashTotal) : 0}</td>
+                  <td className="td">
+                    {employee.missingDocuments ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">{employee.missingDocuments}</span>
+                    ) : 0}
                   </td>
                 </tr>
               ))}
@@ -504,19 +457,18 @@ export default function Reports() {
           </table>
         </div>
       ) : (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">{t('monthly.trends')}</h3>
-          <div className="h-80">
+        <div className="panel p-5 sm:p-6">
+          <div className="h-80" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats?.requestsByMonth}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
+              <BarChart data={stats?.requestsByMonth.map((m, i) => ({ ...m, label: months[i] }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: '#F1F5F9' }} />
                 <Legend />
-                <Bar dataKey="approved" fill="#059669" name={t('approved')} />
-                <Bar dataKey="rejected" fill="#DC2626" name={t('rejected')} />
-                <Bar dataKey="pending" fill="#D97706" name={t('pending')} />
+                <Bar dataKey="approved" fill="#059669" name={t('approved')} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="rejected" fill="#DC2626" name={t('rejected')} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="pending" fill="#D97706" name={t('pending')} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -524,4 +476,4 @@ export default function Reports() {
       )}
     </div>
   );
-} 
+}

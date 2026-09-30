@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronLeft, ChevronRight, Paperclip, Upload } from 'lucide-react';
 import { requestTypeKey, isReportType, isMissingDocument } from '@/lib/firebase/reports';
 import { formatAmount } from '@/lib/firebase/attachments';
-import { countWorkdays } from '@/lib/workdays';
+import { getVacationQuota, usedVacationDays } from '@/lib/firebase/vacationQuotas';
 import { TYPE_META, TYPE_ORDER, STATUS_META } from '@/lib/requestTypeMeta';
 
 type Filter = 'all' | 'open' | 'done';
@@ -35,6 +35,7 @@ export default function EmployeeDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
+  const [vacationQuota, setVacationQuota] = useState<number | null>(null);
   const locale = localeOf(language);
   const Chevron = dir === 'rtl' ? ChevronLeft : ChevronRight;
 
@@ -55,6 +56,8 @@ export default function EmployeeDashboard() {
         try {
           const userRequests = await getRequestsByEmployee(user.id);
           setRequests(userRequests);
+          // The quota is optional (set by the office); without it the page shows used days
+          getVacationQuota(user.id, new Date().getFullYear()).then(setVacationQuota).catch(() => setVacationQuota(null));
         } catch (error) {
           console.error('Error fetching requests:', error);
           toast.error(t('error.loading.requests'));
@@ -68,19 +71,15 @@ export default function EmployeeDashboard() {
 
   const stats = useMemo(() => {
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const yearEnd = new Date(now.getFullYear(), 11, 31);
     const waiting = requests.filter((r) => r.status === 'pending').length;
     const shiftsThisMonth = requests.filter((r) => {
       if (r.type !== 'extra_shift' || r.status !== 'approved') return false;
       const d = r.startDate.toDate();
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     }).length;
-    const vacationDays = requests
-      .filter((r) => r.type === 'vacation' && r.status === 'approved')
-      .reduce((sum, r) => sum + countWorkdays(r.startDate.toDate(), (r.endDate || r.startDate).toDate(), { start: yearStart, end: yearEnd }), 0);
+    const vacationDays = user ? usedVacationDays(requests, user.id, now.getFullYear()) : 0;
     return { waiting, shiftsThisMonth, vacationDays };
-  }, [requests]);
+  }, [requests, user]);
 
   const missingDocs = requests.filter((r) => isMissingDocument(r));
   const shown = requests.filter((r) => {
@@ -149,10 +148,19 @@ export default function EmployeeDashboard() {
             {[
               { value: stats.waiting, label: t('home.stat.waiting') },
               { value: stats.shiftsThisMonth, label: t('home.stat.shifts.month') },
-              { value: stats.vacationDays, label: t('home.stat.vacation.year') },
-            ].map((s) => (
+              vacationQuota !== null
+                ? {
+                    value: Math.max(0, Math.round((vacationQuota - stats.vacationDays) * 10) / 10),
+                    label: t('home.stat.vacation.left'),
+                    sub: t('home.stat.of.quota').replace('{n}', String(vacationQuota)),
+                  }
+                : { value: stats.vacationDays, label: t('home.stat.vacation.year') },
+            ].map((s: { value: number; label: string; sub?: string }) => (
               <div key={s.label} className="rounded-2xl bg-white/10 ring-1 ring-white/15 backdrop-blur-sm px-3 py-3">
-                <p className="text-2xl sm:text-3xl font-bold leading-none">{s.value}</p>
+                <p className="text-2xl sm:text-3xl font-bold leading-none">
+                  {s.value}
+                  {s.sub && <span className="ms-1 text-xs font-normal text-white/70">{s.sub}</span>}
+                </p>
                 <p className="mt-1.5 text-[11px] sm:text-xs leading-tight text-white/80">{s.label}</p>
               </div>
             ))}

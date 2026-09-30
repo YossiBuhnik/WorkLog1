@@ -16,7 +16,6 @@ const LANGUAGES = [
   { code: 'ar', label: 'العربية' },
 ] as const;
 
-// Phone sign-in was never finished (no code-entry step), so only email sign-in is offered.
 export default function LoginPage() {
   const router = useRouter();
   const { signInWithEmail } = useAuth();
