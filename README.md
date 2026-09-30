@@ -1,47 +1,53 @@
-# WorkLog
+# WorkLog - TSK יומן עבודה
 
-A web application for managing employee requests for extra shifts and vacations. Built with Next.js 14, TypeScript, and Firebase.
+Work-log web app for TSK civil engineering: extra shifts, vacation, sick leave, reserve duty and petty cash,
+with manager approvals and an office area (reports, documents, Excel export, vacation quotas).
+Installable on phones as an app (PWA).
 
-[![Deployment Status](https://img.shields.io/badge/deployment-active-green)](https://worklog-git-deploy-fix-yossibuhnik.vercel.app/)
+- **Live:** https://work-log1.vercel.app  ·  employees install the app from https://work-log1.vercel.app/install
+- **Hosting:** Vercel project `work-log1`, deploys automatically from the `main` branch of this repo
+- **Database / login:** Firebase project `worckshifts` (Firestore + Auth, free plan)
+- **Stack:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Firebase · ExcelJS
 
-## Deployment
+## איך ממשיכים לעבוד (בעברית)
 
-This project is deployed on Vercel. The main deployment branch is `deploy-fix`.
+1. **מריצים מקומית:** לחיצה כפולה על `start-local.cmd`. נפתח אתר מקומי עם נתונים מדומים בכתובת http://localhost:3000
+   (שום דבר לא נוגע באתר החי). משתמשי הדמה והסיסמה - בראש הקובץ `scripts/seed-emulator.mjs`.
+2. **משנים ובודקים** מקומית, כולל בדיקת תצוגת נייד (F12 ואז Ctrl+Shift+M).
+3. **העלאה לאוויר:** דחיפה ל-`main` ב-GitHub. Vercel מעדכן את האתר תוך 1-3 דקות, והאפליקציה בטלפונים מתעדכנת לבד.
+4. **אם שיניתם את `firestore.rules`:** מריצים `node scripts/test-rules.mjs` (כל הבדיקות חייבות לעבור),
+   ומדביקים את הקובץ ב-Firebase Console ← Firestore ← Rules **לפני** העלאת הקוד.
+5. **חזרה לגרסה קודמת:** Vercel ← Deployments ← בוחרים גרסה קודמת ← "Promote to Production".
 
-## Features
+## Local development
 
-- Employee request submission for extra shifts and vacations
-- Manager approval/rejection workflow
-- Multi-language support (English, Hebrew, Arabic)
-- Real-time updates with Firebase
-- Responsive design with Tailwind CSS
+Requirements: Node.js, Firebase CLI, Java 21 (for the Firestore emulator).
 
-## Tech Stack
+| Command | What it does |
+| --- | --- |
+| `start-local.cmd` | Starts the Firebase emulators, seeds fake data, runs `npm run dev` |
+| `node scripts/seed-emulator.mjs` | Re-creates the fake users and requests (emulator must be running) |
+| `node scripts/test-rules.mjs` | Checks `firestore.rules` against the emulator (all checks must pass) |
+| `npm run build` | Production build (needs `.env.local` with the real Firebase web config) |
 
-- Next.js 14 (App Router)
-- TypeScript
-- Firebase (Authentication, Firestore, Storage)
-- Tailwind CSS
-- Vercel AI SDK
+Environment files (not in git):
+- `.env.local` - real Firebase web config (used by production builds; Vercel has its own copy in project settings)
+- `.env.development.local` - points `npm run dev` at the local emulator (project `demo-worklog`)
 
-## Getting Started
+## Where things are
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Set up environment variables in `.env.local`:
-   ```
-   NEXT_PUBLIC_FIREBASE_API_KEY=your_key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_domain
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-   ```
-4. Run the development server:
-   ```bash
-   npm run dev
-   ```
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+| Path | Contents |
+| --- | --- |
+| `src/app/employee` | Employee home, new request (2 steps), report details |
+| `src/app/manager` | Pending approvals, all requests, schedule |
+| `src/app/office` | Overview, employees (roles + vacation quotas), reports + Excel, documents |
+| `src/app/install`, `src/app/manifest.ts`, `public/sw.js`, `public/icons` | Phone app (PWA) |
+| `src/app/components` | Header, phone bottom navigation, sub-tabs, notification bell |
+| `src/lib/translations/index.ts` | All UI texts (Hebrew / English / Arabic) |
+| `src/lib/requestTypeMeta.ts` | Icon and colors of each request type and status |
+| `src/lib/workdays.ts` | Workday count and Israeli holidays - **add 2028-29 holidays by end of 2027** |
+| `src/lib/firebase` | Firestore access: requests, reports, attachments, vacation quotas |
+| `firestore.rules` | Database permissions (office / manager / employee) |
+
+Roles: `employee` submits requests; `manager` approves shifts and vacations; `office` handles reports, documents,
+employees and vacation quotas (office users can also submit their own requests).
